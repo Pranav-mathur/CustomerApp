@@ -1,0 +1,479 @@
+// providers/profile_provider.dart
+
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import '../models/profile_model.dart';
+import '../models/address_model.dart';
+import '../models/family_profile_model.dart';
+import '../services/profile_service.dart';
+
+class ProfileProvider extends ChangeNotifier {
+  ProfileModel _profile = ProfileModel();
+  final ProfileService _profileService = ProfileService();
+
+  String? _error;
+  String? _profileId;
+  bool _isLoading = false;
+
+  ProfileModel get profile => _profile;
+  String? get error => _error;
+  String? get profileId => _profileId;
+  bool get isLoading => _isLoading;
+
+  // Update name
+  void updateName(String name) {
+    if (_profile.name != name) {
+      _profile.name = name.trim();
+      notifyListeners();
+    }
+  }
+
+  // Update gender
+  void updateGender(String gender) {
+    if (_profile.gender != gender) {
+      _profile.gender = gender;
+      notifyListeners();
+    }
+  }
+
+  // Update email
+  void updateEmail(String email) {
+    if (_profile.email != email) {
+      _profile.email = email.trim().toLowerCase();
+      notifyListeners();
+    }
+  }
+
+  // Update profile image
+  void updateProfileImage(String path) {
+    if (_profile.profileImagePath != path) {
+      _profile.profileImagePath = path;
+      notifyListeners();
+    }
+  }
+
+  // Measurements methods
+  void addMeasurement(MeasurementModel measurement) {
+    _profile = _profile.copyWith(
+      measurements: [..._profile.measurements, measurement],
+    );
+    notifyListeners();
+  }
+
+  void updateMeasurement(int index, MeasurementModel measurement) {
+    if (index >= 0 && index < _profile.measurements.length) {
+      final measurements = List<MeasurementModel>.from(_profile.measurements);
+      measurements[index] = measurement;
+      _profile = _profile.copyWith(measurements: measurements);
+      notifyListeners();
+    }
+  }
+
+  void updateMeasurementName(int index, String name) {
+    if (index >= 0 && index < _profile.measurements.length) {
+      final measurements = List<MeasurementModel>.from(_profile.measurements);
+      measurements[index] = measurements[index].copyWith(name: name);
+      _profile = _profile.copyWith(measurements: measurements);
+      notifyListeners();
+    }
+  }
+
+  void updateMeasurementUnit(int index, String unit) {
+    if (index >= 0 && index < _profile.measurements.length) {
+      final measurements = List<MeasurementModel>.from(_profile.measurements);
+      measurements[index] = measurements[index].copyWith(unit: unit);
+      _profile = _profile.copyWith(measurements: measurements);
+      notifyListeners();
+    }
+  }
+
+  // NEW: Update measurement value
+  void updateMeasurementValue(int index, String value) {
+    if (index >= 0 && index < _profile.measurements.length) {
+      final measurements = List<MeasurementModel>.from(_profile.measurements);
+      measurements[index] = measurements[index].copyWith(value: value);
+      _profile = _profile.copyWith(measurements: measurements);
+      notifyListeners();
+    }
+  }
+
+  void removeMeasurement(int index) {
+    if (index >= 0 && index < _profile.measurements.length) {
+      final measurements = List<MeasurementModel>.from(_profile.measurements);
+      measurements.removeAt(index);
+      _profile = _profile.copyWith(measurements: measurements);
+      notifyListeners();
+    }
+  }
+
+  void updateMeasurements(List<MeasurementModel> measurements) {
+    _profile = _profile.copyWith(measurements: measurements);
+    notifyListeners();
+  }
+
+  // Initialize address if null
+  void _ensureAddressExists() {
+    _profile.address ??= AddressModel();
+  }
+
+  // Update house/flat/block
+  void updateHouseFlatBlock(String value) {
+    _ensureAddressExists();
+    if (_profile.address!.houseFlatBlock != value) {
+      _profile.address!.houseFlatBlock = value.trim();
+      notifyListeners();
+    }
+  }
+
+  // Update apartment/road/area
+  void updateApartmentRoadArea(String value) {
+    _ensureAddressExists();
+    if (_profile.address!.apartmentRoadArea != value) {
+      _profile.address!.apartmentRoadArea = value.trim();
+      notifyListeners();
+    }
+  }
+
+  // Update street and city
+  void updateStreetAndCity(String value) {
+    _ensureAddressExists();
+    if (_profile.address!.streetAndCity != value) {
+      _profile.address!.streetAndCity = value.trim();
+      notifyListeners();
+    }
+  }
+
+  // Update address type
+  void updateAddressType(String type) {
+    _ensureAddressExists();
+    if (_profile.address!.addressType != type) {
+      _profile.address!.addressType = type;
+      notifyListeners();
+    }
+  }
+
+  // Update entire address
+  void updateAddress(AddressModel address) {
+    _profile.address = address;
+    notifyListeners();
+  }
+
+  // Update entire profile
+  void updateProfile(ProfileModel profile) {
+    _profile = profile;
+    notifyListeners();
+  }
+
+  // Reset profile
+  void resetProfile() {
+    _profile = ProfileModel();
+    _error = null;
+    _profileId = null;
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  // Clear error
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  // Validate basic profile (without address)
+  bool validateBasicProfile() {
+    return _profile.isBasicProfileComplete;
+  }
+
+  // Validate complete profile (including address)
+  bool validateProfile() {
+    return _profile.isComplete;
+  }
+
+  // Validate address
+  bool validateAddress() {
+    return _profile.address != null && _profile.address!.isComplete;
+  }
+
+  // Validate email format
+  bool isValidEmail(String email) {
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    return emailRegex.hasMatch(email);
+  }
+
+  // Validate name
+  bool isValidName(String name) {
+    return name.trim().length >= 2;
+  }
+
+  // Check if profile has any unsaved changes
+  bool hasUnsavedChanges() {
+    return _profile.hasData;
+  }
+
+  // Get profile completion percentage (including address)
+  double getCompletionPercentage() {
+    int completed = 0;
+    int total = 8; // name, gender, email, image, 4 address fields
+
+    if (_profile.name != null && _profile.name!.isNotEmpty) completed++;
+    if (_profile.gender != null) completed++;
+    if (_profile.email != null && _profile.email!.isNotEmpty) completed++;
+    if (_profile.profileImagePath != null) completed++;
+
+    if (_profile.address != null) {
+      if (_profile.address!.houseFlatBlock != null &&
+          _profile.address!.houseFlatBlock!.isNotEmpty) completed++;
+      if (_profile.address!.apartmentRoadArea != null &&
+          _profile.address!.apartmentRoadArea!.isNotEmpty) completed++;
+      if (_profile.address!.streetAndCity != null &&
+          _profile.address!.streetAndCity!.isNotEmpty) completed++;
+      if (_profile.address!.addressType != null) completed++;
+    }
+
+    return (completed / total) * 100;
+  }
+
+  // Get basic profile completion percentage (without address)
+  double getBasicProfileCompletionPercentage() {
+    int completed = 0;
+    int total = 4;
+
+    if (_profile.name != null && _profile.name!.isNotEmpty) completed++;
+    if (_profile.gender != null) completed++;
+    if (_profile.email != null && _profile.email!.isNotEmpty) completed++;
+    if (_profile.profileImagePath != null) completed++;
+
+    return (completed / total) * 100;
+  }
+
+  // ==================== API METHODS ====================
+
+  // Create profile via API
+  Future<bool> createProfile() async {
+    try {
+      _error = null;
+      _isLoading = true;
+      notifyListeners();
+
+      debugPrint('📤 Starting profile creation...');
+
+      String? uploadedImageUrl;
+
+      // Upload profile image first if it exists
+      if (_profile.profileImagePath != null && _profile.profileImagePath!.isNotEmpty) {
+        debugPrint('📸 Uploading profile image...');
+
+        try {
+          final file = File(_profile.profileImagePath!);
+          uploadedImageUrl = await _profileService.uploadProfileImage(file);
+          debugPrint('✅ Image uploaded successfully: $uploadedImageUrl');
+        } catch (e) {
+          debugPrint('❌ Image upload failed: $e');
+          _error = 'Failed to upload profile image: ${e.toString().replaceAll('Exception: ', '')}';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+      }
+
+      debugPrint('📤 Creating profile with data...');
+      debugPrint('Profile Name: ${_profile.name}');
+      debugPrint('Gender: ${_profile.gender}');
+      debugPrint('Email: ${_profile.email}');
+      debugPrint('Image URL: $uploadedImageUrl');
+      debugPrint('Measurements: ${_profile.measurements.length}');
+
+      final result = await _profileService.createProfile(
+        profileName: _profile.name ?? '',
+        gender: _profile.gender ?? '',
+        email: _profile.email ?? '',
+        imageUrl: uploadedImageUrl, // Use the uploaded image URL
+        measurements: _profile.measurements,
+        address: _profile.address,
+      );
+
+      _isLoading = false;
+
+      if (result != null) {
+        // Store the profile ID
+        if (result['profileId'] != null) {
+          _profileId = result['profileId'];
+          debugPrint('✅ Profile created with ID: $_profileId');
+        }
+
+        // Update the profile with the uploaded image URL
+        if (uploadedImageUrl != null) {
+          _profile.profileImagePath = uploadedImageUrl;
+        }
+
+        notifyListeners();
+        return true;
+      }
+
+      _error = 'Failed to create profile';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error creating profile: $e');
+      _error = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Update existing profile via API
+  Future<bool> updateExistingProfile() async {
+    try {
+      if (_profileId == null) {
+        _error = 'Profile ID not found';
+        notifyListeners();
+        return false;
+      }
+
+      _error = null;
+      _isLoading = true;
+      notifyListeners();
+
+      debugPrint('📤 Updating profile with ID: $_profileId');
+
+      final result = await _profileService.updateProfile(
+        profileId: _profileId!,
+        profileName: _profile.name ?? '',
+        gender: _profile.gender ?? '',
+        email: _profile.email ?? '',
+        imageUrl: _profile.profileImagePath,
+        measurements: _profile.measurements,
+        address: _profile.address,
+      );
+
+      _isLoading = false;
+
+      if (result != null) {
+        debugPrint('✅ Profile updated successfully');
+        notifyListeners();
+        return true;
+      }
+
+      _error = 'Failed to update profile';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error updating profile: $e');
+      _error = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Load profile by ID from API
+  Future<bool> loadProfile(String profileId) async {
+    try {
+      _error = null;
+      _isLoading = true;
+      notifyListeners();
+
+      debugPrint('📥 Loading profile with ID: $profileId');
+
+      final result = await _profileService.getProfile(profileId);
+
+      _isLoading = false;
+
+      if (result != null) {
+        _profileId = profileId;
+        // Parse and update the profile from result
+        // You'll need to implement parsing logic based on your API response
+        debugPrint('✅ Profile loaded successfully');
+        notifyListeners();
+        return true;
+      }
+
+      _error = 'Failed to load profile';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error loading profile: $e');
+      _error = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Get all profiles from API
+  Future<List<dynamic>?> getAllProfiles() async {
+    try {
+      _error = null;
+      _isLoading = true;
+      notifyListeners();
+
+      debugPrint('📥 Fetching all profiles...');
+
+      final profiles = await _profileService.getAllProfiles();
+
+      _isLoading = false;
+      notifyListeners();
+
+      if (profiles != null) {
+        debugPrint('✅ Fetched ${profiles.length} profiles');
+        return profiles;
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error fetching profiles: $e');
+      _error = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  // Delete profile by ID
+  Future<bool> deleteProfile(String profileId) async {
+    try {
+      _error = null;
+      _isLoading = true;
+      notifyListeners();
+
+      debugPrint('🗑️ Deleting profile with ID: $profileId');
+
+      final success = await _profileService.deleteProfile(profileId);
+
+      _isLoading = false;
+
+      if (success) {
+        debugPrint('✅ Profile deleted successfully');
+        // If deleting current profile, reset
+        if (_profileId == profileId) {
+          resetProfile();
+        }
+        notifyListeners();
+        return true;
+      }
+
+      _error = 'Failed to delete profile';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error deleting profile: $e');
+      _error = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void clearProfileData() {
+    _profile = ProfileModel();
+    _error = null;
+    _profileId = null;
+    _isLoading = false;
+    notifyListeners();
+    debugPrint('✅ Profile data cleared to initial state');
+  }
+}
