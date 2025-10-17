@@ -44,7 +44,6 @@ class ProfileModel {
           (email != null && email!.isNotEmpty) ||
           gender != null ||
           profileImagePath != null ||
-          (address != null && address!.hasData) ||
           measurements.isNotEmpty;
 
   // Convert to JSON

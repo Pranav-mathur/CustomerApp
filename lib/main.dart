@@ -1,7 +1,9 @@
 import 'package:customer_app/screens/add_family_profile_screen.dart';
 import 'package:customer_app/providers/family_profile_provider.dart';
 import 'package:customer_app/providers/profile_provider.dart';
+import 'package:customer_app/screens/address_list_screen.dart';
 import 'package:customer_app/screens/book_appointment_screen.dart';
+import 'package:customer_app/screens/book_appointment_screen_v2.dart';
 import 'package:customer_app/screens/login_screen.dart';
 import 'package:customer_app/screens/otp_verification_screen.dart';
 import 'package:customer_app/screens/profile_details_screen.dart';
@@ -17,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'models/book_appointment_models.dart';
+import 'models/updated_booking_models.dart';
 import 'providers/auth_provider.dart';
 
 void main() {
@@ -55,6 +58,7 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/my-orders': (context) => const MyOrdersScreen(),
         '/profiles-list': (context) => const ProfilesListScreen(),
+        '/address-list': (context) => const AddressListScreen(),
         // Tailor detail and order details routes handled by onGenerateRoute
       },
       onGenerateRoute: (settings) {
@@ -77,10 +81,9 @@ class MyApp extends StatelessWidget {
         }
 
         if (settings.name == '/book-appointment') {
-          final bookingData = settings.arguments as BookingData;
+          final bookingData = settings.arguments as BookingDataV2;
           return MaterialPageRoute(
-            builder: (context) => BookAppointmentScreen(bookingData: bookingData),
-            settings: settings,
+            builder: (context) => BookAppointmentScreenV2(bookingData: bookingData),
           );
         }
 

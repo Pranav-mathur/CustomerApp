@@ -22,6 +22,23 @@ class AuthService {
     }
   }
 
+  Future<void> clearSession() async {
+    try {
+      // await _secureStorage.delete(key: _tokenKey);
+      // await _secureStorage.delete(key: _phoneNumberKey);
+      // Add any other keys you store during authentication
+      // Example: await _secureStorage.delete(key: 'user_id');
+      // Example: await _secureStorage.delete(key: 'refresh_token');
+
+      // Or if you want to clear everything:
+      await _secureStorage.deleteAll();
+
+      debugPrint('✅ Session cleared successfully');
+    } catch (e) {
+      debugPrint('❌ Error clearing session: $e');
+    }
+  }
+
   // Save token
   Future<void> saveToken(String token) async {
     try {
@@ -99,7 +116,7 @@ class AuthService {
         throw Exception("Failed to send OTP: ${response.body}");
       }
     }
-
+    //
     // return {
     //   "message": "OTP sent successfully"
     // };
@@ -154,7 +171,7 @@ class AuthService {
     //
     // return {
     //   "token": "NEW-TOKEN",
-    //   "is_new_user": true,
+    //   "is_new_user": false,
     // };
   }
 

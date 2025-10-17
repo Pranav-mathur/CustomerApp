@@ -7,10 +7,12 @@ import '../models/profile_model.dart';
 import '../models/address_model.dart';
 import '../models/family_profile_model.dart';
 import '../services/profile_service.dart';
+import '../services/location_service.dart';
 
 class ProfileProvider extends ChangeNotifier {
   ProfileModel _profile = ProfileModel();
   final ProfileService _profileService = ProfileService();
+  final LocationService _locationService = LocationService();
 
   String? _error;
   String? _profileId;
@@ -113,45 +115,9 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   // Initialize address if null
-  void _ensureAddressExists() {
-    _profile.address ??= AddressModel();
-  }
 
-  // Update house/flat/block
-  void updateHouseFlatBlock(String value) {
-    _ensureAddressExists();
-    if (_profile.address!.houseFlatBlock != value) {
-      _profile.address!.houseFlatBlock = value.trim();
-      notifyListeners();
-    }
-  }
 
-  // Update apartment/road/area
-  void updateApartmentRoadArea(String value) {
-    _ensureAddressExists();
-    if (_profile.address!.apartmentRoadArea != value) {
-      _profile.address!.apartmentRoadArea = value.trim();
-      notifyListeners();
-    }
-  }
 
-  // Update street and city
-  void updateStreetAndCity(String value) {
-    _ensureAddressExists();
-    if (_profile.address!.streetAndCity != value) {
-      _profile.address!.streetAndCity = value.trim();
-      notifyListeners();
-    }
-  }
-
-  // Update address type
-  void updateAddressType(String type) {
-    _ensureAddressExists();
-    if (_profile.address!.addressType != type) {
-      _profile.address!.addressType = type;
-      notifyListeners();
-    }
-  }
 
   // Update entire address
   void updateAddress(AddressModel address) {
@@ -223,16 +189,6 @@ class ProfileProvider extends ChangeNotifier {
     if (_profile.email != null && _profile.email!.isNotEmpty) completed++;
     if (_profile.profileImagePath != null) completed++;
 
-    if (_profile.address != null) {
-      if (_profile.address!.houseFlatBlock != null &&
-          _profile.address!.houseFlatBlock!.isNotEmpty) completed++;
-      if (_profile.address!.apartmentRoadArea != null &&
-          _profile.address!.apartmentRoadArea!.isNotEmpty) completed++;
-      if (_profile.address!.streetAndCity != null &&
-          _profile.address!.streetAndCity!.isNotEmpty) completed++;
-      if (_profile.address!.addressType != null) completed++;
-    }
-
     return (completed / total) * 100;
   }
 
@@ -260,6 +216,21 @@ class ProfileProvider extends ChangeNotifier {
 
       debugPrint('📤 Starting profile creation...');
 
+      // Fetch location silently in the background
+      Map<String, double>? location;
+      try {
+        debugPrint('📍 Fetching location...');
+        location = await _locationService.getCurrentLocation();
+        if (location != null) {
+          debugPrint('✅ Location fetched: ${location['latitude']}, ${location['longitude']}');
+        } else {
+          debugPrint('⚠️ Location not available, continuing without it');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Location fetch failed, continuing without it: $e');
+        location = null;
+      }
+
       String? uploadedImageUrl;
 
       // Upload profile image first if it exists
@@ -285,26 +256,27 @@ class ProfileProvider extends ChangeNotifier {
       debugPrint('Email: ${_profile.email}');
       debugPrint('Image URL: $uploadedImageUrl');
       debugPrint('Measurements: ${_profile.measurements.length}');
+      debugPrint('Location: ${location?['latitude']}, ${location?['longitude']}');
 
       final result = await _profileService.createProfile(
         profileName: _profile.name ?? '',
         gender: _profile.gender ?? '',
         email: _profile.email ?? '',
-        imageUrl: uploadedImageUrl, // Use the uploaded image URL
+        imageUrl: uploadedImageUrl,
         measurements: _profile.measurements,
         address: _profile.address,
+        latitude: location?['latitude'],   // Send location if available
+        longitude: location?['longitude'], // Send location if available
       );
 
       _isLoading = false;
 
       if (result != null) {
-        // Store the profile ID
         if (result['profileId'] != null) {
           _profileId = result['profileId'];
           debugPrint('✅ Profile created with ID: $_profileId');
         }
 
-        // Update the profile with the uploaded image URL
         if (uploadedImageUrl != null) {
           _profile.profileImagePath = uploadedImageUrl;
         }

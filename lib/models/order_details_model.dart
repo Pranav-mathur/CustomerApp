@@ -2,14 +2,14 @@
 
 import 'package:flutter/material.dart';
 
-class OrderItemDetailModel {
+class OrderDetailsItem {
   final String id;
   final int quantity;
   final String itemType;
   final String itemCategory;
   final String assignedTo;
 
-  OrderItemDetailModel({
+  OrderDetailsItem({
     required this.id,
     required this.quantity,
     required this.itemType,
@@ -17,25 +17,35 @@ class OrderItemDetailModel {
     required this.assignedTo,
   });
 
-  factory OrderItemDetailModel.fromJson(Map<String, dynamic> json) {
-    return OrderItemDetailModel(
-      id: json['id'],
-      quantity: json['quantity'],
-      itemType: json['itemType'],
-      itemCategory: json['itemCategory'],
-      assignedTo: json['assignedTo'],
+  factory OrderDetailsItem.fromJson(Map<String, dynamic> json) {
+    return OrderDetailsItem(
+      id: json['id'] ?? '',
+      quantity: json['quantity'] ?? 1,
+      itemType: json['itemType'] ?? '',
+      itemCategory: json['itemCategory'] ?? '',
+      assignedTo: json['assignedTo'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'quantity': quantity,
+      'itemType': itemType,
+      'itemCategory': itemCategory,
+      'assignedTo': assignedTo,
+    };
   }
 }
 
-class TailorDetailModel {
+class TailorInfo {
   final String id;
   final String name;
   final String imageUrl;
   final double rating;
   final int reviewCount;
 
-  TailorDetailModel({
+  TailorInfo({
     required this.id,
     required this.name,
     required this.imageUrl,
@@ -43,51 +53,76 @@ class TailorDetailModel {
     required this.reviewCount,
   });
 
-  factory TailorDetailModel.fromJson(Map<String, dynamic> json) {
-    return TailorDetailModel(
-      id: json['id'],
-      name: json['name'],
-      imageUrl: json['imageUrl'],
-      rating: json['rating'].toDouble(),
-      reviewCount: json['reviewCount'],
+  factory TailorInfo.fromJson(Map<String, dynamic> json) {
+    return TailorInfo(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      imageUrl: json['imageUrl'] ?? '',
+      rating: (json['rating'] ?? 0).toDouble(),
+      reviewCount: json['reviewCount'] ?? 0,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'imageUrl': imageUrl,
+      'rating': rating,
+      'reviewCount': reviewCount,
+    };
   }
 }
 
-class PaymentDetailModel {
+class PickupAddress {
+  final String name;
+  final String address;
+
+  PickupAddress({
+    required this.name,
+    required this.address,
+  });
+
+  factory PickupAddress.fromJson(Map<String, dynamic> json) {
+    return PickupAddress(
+      name: json['name'] ?? '',
+      address: json['address'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'address': address,
+    };
+  }
+}
+
+class PaymentDetails {
   final double amount;
   final String paymentMethod;
   final String cardNumber;
 
-  PaymentDetailModel({
+  PaymentDetails({
     required this.amount,
     required this.paymentMethod,
     required this.cardNumber,
   });
 
-  factory PaymentDetailModel.fromJson(Map<String, dynamic> json) {
-    return PaymentDetailModel(
-      amount: json['amount'].toDouble(),
-      paymentMethod: json['paymentMethod'],
-      cardNumber: json['cardNumber'],
+  factory PaymentDetails.fromJson(Map<String, dynamic> json) {
+    return PaymentDetails(
+      amount: (json['amount'] ?? 0).toDouble(),
+      paymentMethod: json['paymentMethod'] ?? '',
+      cardNumber: json['cardNumber'] ?? '',
     );
   }
-}
 
-class PickupAddressModel {
-  final String name;
-  final String address;
-
-  PickupAddressModel({
-    required this.name,
-    required this.address,
-  });
-
-  factory PickupAddressModel.fromJson(Map<String, dynamic> json) {
-    return PickupAddressModel(
-      name: json['name'],
-      address: json['address'],
-    );
+  Map<String, dynamic> toJson() {
+    return {
+      'amount': amount,
+      'paymentMethod': paymentMethod,
+      'cardNumber': cardNumber,
+    };
   }
 }
 
@@ -97,10 +132,10 @@ class OrderDetailsModel {
   final String pickupTime;
   final String pickupDate;
   final bool canEditPickupTime;
-  final List<OrderItemDetailModel> items;
-  final TailorDetailModel tailor;
-  final PickupAddressModel pickupAddress;
-  final PaymentDetailModel payment;
+  final List<OrderDetailsItem> items;
+  final TailorInfo tailor;
+  final PickupAddress pickupAddress;
+  final PaymentDetails payment;
   final String placedOn;
 
   OrderDetailsModel({
@@ -118,29 +153,54 @@ class OrderDetailsModel {
 
   factory OrderDetailsModel.fromJson(Map<String, dynamic> json) {
     return OrderDetailsModel(
-      orderId: json['orderId'],
-      status: json['status'],
-      pickupTime: json['pickupTime'],
-      pickupDate: json['pickupDate'],
-      canEditPickupTime: json['canEditPickupTime'],
-      items: (json['items'] as List)
-          .map((item) => OrderItemDetailModel.fromJson(item))
-          .toList(),
-      tailor: TailorDetailModel.fromJson(json['tailor']),
-      pickupAddress: PickupAddressModel.fromJson(json['pickupAddress']),
-      payment: PaymentDetailModel.fromJson(json['payment']),
-      placedOn: json['placedOn'],
+      orderId: json['orderId'] ?? '',
+      status: json['status'] ?? '',
+      pickupTime: json['pickupTime'] ?? '',
+      pickupDate: json['pickupDate'] ?? '',
+      canEditPickupTime: json['canEditPickupTime'] ?? false,
+      items: (json['items'] as List?)
+          ?.map((item) => OrderDetailsItem.fromJson(item))
+          .toList() ??
+          [],
+      tailor: TailorInfo.fromJson(json['tailor'] ?? {}),
+      pickupAddress: PickupAddress.fromJson(json['pickupAddress'] ?? {}),
+      payment: PaymentDetails.fromJson(json['payment'] ?? {}),
+      placedOn: json['placedOn'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'orderId': orderId,
+      'status': status,
+      'pickupTime': pickupTime,
+      'pickupDate': pickupDate,
+      'canEditPickupTime': canEditPickupTime,
+      'items': items.map((item) => item.toJson()).toList(),
+      'tailor': tailor.toJson(),
+      'pickupAddress': pickupAddress.toJson(),
+      'payment': payment.toJson(),
+      'placedOn': placedOn,
+    };
   }
 
   Color getStatusColor() {
     switch (status.toLowerCase()) {
+      case 'requested':
       case 'order confirmed':
-        return Colors.green;
-      case 'stitching in progress':
-        return Colors.orange;
-      case 'delivered':
+      case 'confirmed':
         return Colors.blue;
+      case 'stitching in progress':
+      case 'in progress':
+      case 'stitching':
+        return Colors.orange;
+      case 'ready for delivery':
+      case 'ready to deliver':
+      case 'ready':
+        return Colors.purple;
+      case 'delivered':
+      case 'completed':
+        return Colors.green;
       case 'cancelled':
         return Colors.red;
       default:

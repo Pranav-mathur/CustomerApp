@@ -1,8 +1,12 @@
 // screens/add_address_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/profile_provider.dart';
+import '../services/address_service.dart';
+import '../services/auth_service.dart';
+import '../models/address_model.dart';
 
 class AddAddressScreen extends StatefulWidget {
   const AddAddressScreen({Key? key}) : super(key: key);
@@ -13,30 +17,144 @@ class AddAddressScreen extends StatefulWidget {
 
 class _AddAddressScreenState extends State<AddAddressScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _houseController = TextEditingController();
-  final _apartmentController = TextEditingController();
   final _streetController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _pincodeController = TextEditingController();
+  final _mobileController = TextEditingController();
+  final AddressService _addressService = AddressService();
+  final AuthService _authService = AuthService();
+
   bool _isLoading = false;
+  String? _profileId;
+  String? _selectedAddressType;
+  bool _isDefaultAddress = false;
+  bool _isFromAddressList = false;
+  bool _isEditMode = false;
+  AddressModel? _editingAddress;
+  bool _hasChanges = false;
+
+  // Store original values to detect changes
+  String? _originalStreet;
+  String? _originalCity;
+  String? _originalState;
+  String? _originalPincode;
+  String? _originalMobile;
+  String? _originalAddressType;
+  bool? _originalIsDefault;
 
   @override
   void initState() {
     super.initState();
+
+    // Add listeners to detect changes
+    _streetController.addListener(_checkForChanges);
+    _cityController.addListener(_checkForChanges);
+    _stateController.addListener(_checkForChanges);
+    _pincodeController.addListener(_checkForChanges);
+    _mobileController.addListener(_checkForChanges);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<ProfileProvider>(context, listen: false);
-      if (provider.profile.address != null) {
-        _houseController.text = provider.profile.address!.houseFlatBlock ?? '';
-        _apartmentController.text = provider.profile.address!.apartmentRoadArea ?? '';
-        _streetController.text = provider.profile.address!.streetAndCity ?? '';
+      final args = ModalRoute.of(context)?.settings.arguments;
+
+      if (args != null && args is Map) {
+        if (args['mode'] == 'edit' && args['address'] != null) {
+          // Edit mode
+          final address = args['address'] as AddressModel;
+          setState(() {
+            _isEditMode = true;
+            _editingAddress = address;
+            _isFromAddressList = true;
+
+            // Populate fields
+            _streetController.text = address.street;
+            _cityController.text = address.city;
+            _stateController.text = address.state;
+            _pincodeController.text = address.pincode;
+            _mobileController.text = address.mobile;
+            _selectedAddressType = _formatAddressTypeForDisplay(address.addressType);
+            _isDefaultAddress = address.isDefault;
+
+            // Store original values
+            _originalStreet = address.street;
+            _originalCity = address.city;
+            _originalState = address.state;
+            _originalPincode = address.pincode;
+            _originalMobile = address.mobile;
+            _originalAddressType = _formatAddressTypeForDisplay(address.addressType);
+            _originalIsDefault = address.isDefault;
+          });
+          debugPrint('✏️ Editing address: ${address.id}');
+        } else if (args['fromAddressList'] == true) {
+          // Add new from address list
+          setState(() {
+            _isFromAddressList = true;
+          });
+          debugPrint('🔄 Opening add address from address list - fresh state');
+        }
+      } else if (args is String) {
+        // Original onboarding flow with profile ID
+        setState(() {
+          _profileId = args;
+        });
+        debugPrint('📋 Received profile ID: $_profileId');
       }
     });
   }
 
+  void _checkForChanges() {
+    if (!_isEditMode) return;
+
+    final hasChanges = _streetController.text != _originalStreet ||
+        _cityController.text != _originalCity ||
+        _stateController.text != _originalState ||
+        _pincodeController.text != _originalPincode ||
+        _mobileController.text != _originalMobile ||
+        _selectedAddressType != _originalAddressType ||
+        _isDefaultAddress != _originalIsDefault;
+
+    if (hasChanges != _hasChanges) {
+      setState(() {
+        _hasChanges = hasChanges;
+      });
+    }
+  }
+
+  String _formatAddressTypeForDisplay(String type) {
+    return type[0].toUpperCase() + type.substring(1).toLowerCase();
+  }
+
   @override
   void dispose() {
-    _houseController.dispose();
-    _apartmentController.dispose();
     _streetController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _pincodeController.dispose();
+    _mobileController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleUnauthorizedError() async {
+    await _authService.clearSession();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Session expired. Please login again.'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/login',
+          (Route<dynamic> route) => false,
+    );
   }
 
   void _showErrorSnackBar(String message) {
@@ -68,38 +186,62 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       return;
     }
 
-    final provider = Provider.of<ProfileProvider>(context, listen: false);
-
-    // Update all address fields
-    provider.updateHouseFlatBlock(_houseController.text.trim());
-    provider.updateApartmentRoadArea(_apartmentController.text.trim());
-    provider.updateStreetAndCity(_streetController.text.trim());
-
-    // Check if address type is selected
-    if (provider.profile.address?.addressType == null) {
+    if (_selectedAddressType == null) {
       _showErrorSnackBar('Please select address type');
       return;
     }
 
-    // Validate address completion
-    if (!provider.validateAddress()) {
+    // Validate all fields are filled
+    if (_streetController.text.trim().isEmpty ||
+        _cityController.text.trim().isEmpty ||
+        _stateController.text.trim().isEmpty ||
+        _pincodeController.text.trim().isEmpty ||
+        _mobileController.text.trim().isEmpty) {
       _showErrorSnackBar('Please fill all address fields');
       return;
     }
 
-    // Show loading state
     setState(() {
       _isLoading = true;
     });
 
     try {
-      debugPrint('🚀 Starting profile creation process...');
+      debugPrint('🚀 ${_isEditMode ? "Updating" : "Saving"} address...');
 
-      // This will now:
-      // 1. Upload the image first
-      // 2. Get the image URL
-      // 3. Create the profile with all data including the image URL
-      final success = await provider.createProfile();
+      dynamic response;
+
+      if (_isEditMode && _editingAddress != null) {
+        // Validate that we have an address ID
+        final addressId = _editingAddress!.id;
+        if (addressId == null || addressId.isEmpty) {
+          throw Exception('Invalid address ID');
+        }
+
+        // Update existing address
+        response = await _addressService.updateAddress(
+          addressId: addressId,
+          street: _streetController.text.trim(),
+          city: _cityController.text.trim(),
+          state: _stateController.text.trim(),
+          pincode: _pincodeController.text.trim(),
+          mobile: _mobileController.text.trim(),
+          addressType: _selectedAddressType!.toLowerCase(),
+          label: '',
+          isDefault: _isDefaultAddress,
+        );
+      } else {
+        // Add new address
+        response = await _addressService.addAddress(
+          street: _streetController.text.trim(),
+          city: _cityController.text.trim(),
+          state: _stateController.text.trim(),
+          pincode: _pincodeController.text.trim(),
+          mobile: _mobileController.text.trim(),
+          addressType: _selectedAddressType!.toLowerCase(),
+          label: '',
+          isDefault: _isDefaultAddress,
+        );
+      }
 
       if (!mounted) return;
 
@@ -107,19 +249,36 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         _isLoading = false;
       });
 
-      if (success) {
-        _showSuccessSnackBar('Profile created successfully!');
+      if (response != null) {
+        _showSuccessSnackBar(
+            _isEditMode
+                ? 'Address updated successfully!'
+                : 'Address saved successfully!'
+        );
 
-        provider.clearProfileData();
-        debugPrint('✅ Profile state cleared after successful creation');
-        // Navigate to home page
+        debugPrint('✅ Address ${_isEditMode ? "updated" : "saved"} successfully');
+
+        // Navigate based on which flow we're in
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
-            Navigator.pushReplacementNamed(context, '/home');
+            if (_isFromAddressList) {
+              // Coming from address list - go back with success flag
+              Navigator.pop(context, true);
+            } else {
+              // Original onboarding flow - navigate to home
+              final provider = Provider.of<ProfileProvider>(context, listen: false);
+              provider.clearProfileData();
+
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/home',
+                    (Route<dynamic> route) => false,
+              );
+            }
           }
         });
       } else {
-        _showErrorSnackBar(provider.error ?? 'Failed to create profile');
+        _showErrorSnackBar('Failed to ${_isEditMode ? "update" : "save"} address');
       }
     } catch (e) {
       if (!mounted) return;
@@ -128,8 +287,57 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         _isLoading = false;
       });
 
+      if (e.toString().contains('Session expired') ||
+          e.toString().contains('Authentication token not found') ||
+          e.toString().contains('Unauthorized')) {
+        await _handleUnauthorizedError();
+        return;
+      }
+
       _showErrorSnackBar('Error: ${e.toString()}');
     }
+  }
+
+  void _skipAddress() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Skip Address?'),
+        content: const Text(
+          'You can add your address later from settings. Continue without saving address?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final provider = Provider.of<ProfileProvider>(context, listen: false);
+              provider.clearProfileData();
+
+              Navigator.pop(context);
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/home',
+                    (Route<dynamic> route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade400,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Skip'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -141,9 +349,11 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: _isLoading ? null : () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Add Address',
-          style: TextStyle(
+        title: Text(
+          _isEditMode
+              ? 'Edit Address'
+              : (_isFromAddressList ? 'Add New Address' : 'Add Address'),
+          style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Colors.black87,
@@ -151,6 +361,21 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         ),
         backgroundColor: Colors.grey.shade50,
         elevation: 0,
+        actions: [
+          // Only show skip button in onboarding flow (not in edit or add from list)
+          if (!_isFromAddressList && !_isEditMode)
+            TextButton(
+              onPressed: _isLoading ? null : _skipAddress,
+              child: Text(
+                'Skip',
+                style: TextStyle(
+                  color: _isLoading ? Colors.grey : Colors.red.shade400,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
       ),
       body: SafeArea(
         child: Stack(
@@ -164,7 +389,6 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                   children: [
                     const SizedBox(height: 20),
 
-                    // Address Card
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -204,180 +428,16 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
                           const SizedBox(height: 32),
 
-                          // House/Flat/Block Field
-                          const Text(
-                            'House/Flat/Block',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _houseController,
-                            enabled: !_isLoading,
-                            decoration: InputDecoration(
-                              hintText: 'Enter House/Flat/Block',
-                              hintStyle: TextStyle(color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.red.shade300,
-                                  width: 2,
-                                ),
-                              ),
-                              errorBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Colors.red,
-                                  width: 1,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Please enter house/flat/block';
-                              }
-                              if (value.trim().length < 1) {
-                                return 'This field cannot be empty';
-                              }
-                              return null;
-                            },
-                            textCapitalization: TextCapitalization.words,
-                            onChanged: (value) {
-                              Provider.of<ProfileProvider>(context, listen: false)
-                                  .updateHouseFlatBlock(value);
-                            },
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // Apartment/Road/Area Field
-                          const Text(
-                            'Apartment/Road/Area',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _apartmentController,
-                            enabled: !_isLoading,
-                            decoration: InputDecoration(
-                              hintText: 'Enter Apartment/Road/Area',
-                              hintStyle: TextStyle(color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.red.shade300,
-                                  width: 2,
-                                ),
-                              ),
-                              errorBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Colors.red,
-                                  width: 1,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Please enter apartment/road/area';
-                              }
-                              if (value.trim().length < 2) {
-                                return 'Must be at least 2 characters';
-                              }
-                              return null;
-                            },
-                            textCapitalization: TextCapitalization.words,
-                            onChanged: (value) {
-                              Provider.of<ProfileProvider>(context, listen: false)
-                                  .updateApartmentRoadArea(value);
-                            },
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // Street and City Field
-                          const Text(
-                            'Street and City',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
+                          // Street Field
+                          _buildFieldLabel('Street Address'),
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _streetController,
                             enabled: !_isLoading,
-                            decoration: InputDecoration(
-                              hintText: 'Enter Street and City',
-                              hintStyle: TextStyle(color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.red.shade300,
-                                  width: 2,
-                                ),
-                              ),
-                              errorBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Colors.red,
-                                  width: 1,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                            ),
+                            decoration: _buildInputDecoration('Enter street address'),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
-                                return 'Please enter street and city';
+                                return 'Please enter street address';
                               }
                               if (value.trim().length < 3) {
                                 return 'Must be at least 3 characters';
@@ -385,54 +445,193 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                               return null;
                             },
                             textCapitalization: TextCapitalization.words,
-                            onChanged: (value) {
-                              Provider.of<ProfileProvider>(context, listen: false)
-                                  .updateStreetAndCity(value);
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // City Field
+                          _buildFieldLabel('City'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _cityController,
+                            enabled: !_isLoading,
+                            decoration: _buildInputDecoration('Enter city'),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter city';
+                              }
+                              if (value.trim().length < 2) {
+                                return 'Must be at least 2 characters';
+                              }
+                              return null;
+                            },
+                            textCapitalization: TextCapitalization.words,
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // State Field
+                          _buildFieldLabel('State'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _stateController,
+                            enabled: !_isLoading,
+                            decoration: _buildInputDecoration('Enter state'),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter state';
+                              }
+                              if (value.trim().length < 2) {
+                                return 'Must be at least 2 characters';
+                              }
+                              return null;
+                            },
+                            textCapitalization: TextCapitalization.words,
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Pincode Field
+                          _buildFieldLabel('Pincode'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _pincodeController,
+                            enabled: !_isLoading,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(6),
+                            ],
+                            decoration: _buildInputDecoration('Enter 6-digit pincode'),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter pincode';
+                              }
+                              if (value.trim().length != 6) {
+                                return 'Pincode must be 6 digits';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Mobile Field
+                          _buildFieldLabel('Mobile Number'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _mobileController,
+                            enabled: !_isLoading,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(10),
+                            ],
+                            decoration: _buildInputDecoration('Enter 10-digit mobile number'),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter mobile number';
+                              }
+                              if (value.trim().length != 10) {
+                                return 'Mobile number must be 10 digits';
+                              }
+                              if (!RegExp(r'^[6-9]\d{9}$').hasMatch(value)) {
+                                return 'Please enter a valid mobile number';
+                              }
+                              return null;
                             },
                           ),
 
                           const SizedBox(height: 24),
 
                           // Save Address As
-                          const Text(
-                            'Save address as',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
+                          _buildFieldLabel('Save address as'),
                           const SizedBox(height: 12),
-                          Consumer<ProfileProvider>(
-                            builder: (context, provider, child) {
-                              return Row(
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildAddressTypeButton('Home'),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildAddressTypeButton('Office'),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildAddressTypeButton('Other'),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Default Address Checkbox
+                          InkWell(
+                            onTap: _isLoading
+                                ? null
+                                : () {
+                              setState(() {
+                                _isDefaultAddress = !_isDefaultAddress;
+                              });
+                              _checkForChanges();
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _isDefaultAddress
+                                      ? Colors.red.shade300
+                                      : Colors.grey.shade300,
+                                  width: _isDefaultAddress ? 2 : 1,
+                                ),
+                              ),
+                              child: Row(
                                 children: [
-                                  Expanded(
-                                    child: _buildAddressTypeButton(
-                                      'Home',
-                                      provider.profile.address?.addressType == 'Home',
-                                          () => provider.updateAddressType('Home'),
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: _isDefaultAddress
+                                          ? Colors.red.shade400
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: _isDefaultAddress
+                                            ? Colors.red.shade400
+                                            : Colors.grey.shade400,
+                                        width: 2,
+                                      ),
                                     ),
+                                    child: _isDefaultAddress
+                                        ? Icon(
+                                      Icons.check,
+                                      size: 16,
+                                      color: Colors.white,
+                                    )
+                                        : null,
                                   ),
                                   const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildAddressTypeButton(
-                                      'Office',
-                                      provider.profile.address?.addressType == 'Office',
-                                          () => provider.updateAddressType('Office'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildAddressTypeButton(
-                                      'Other',
-                                      provider.profile.address?.addressType == 'Other',
-                                          () => provider.updateAddressType('Other'),
+                                  Text(
+                                    'Set as default address',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: _isDefaultAddress
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                      color: _isDefaultAddress
+                                          ? Colors.black87
+                                          : Colors.grey.shade700,
                                     ),
                                   ),
                                 ],
-                              );
-                            },
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -440,12 +639,14 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
                     const SizedBox(height: 40),
 
-                    // Save Address Button
+                    // Save/Update Address Button
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _saveAddress,
+                        onPressed: (_isLoading || (_isEditMode && !_hasChanges))
+                            ? null
+                            : _saveAddress,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red.shade300,
                           foregroundColor: Colors.white,
@@ -464,9 +665,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                             strokeWidth: 2,
                           ),
                         )
-                            : const Text(
-                          'Save Address',
-                          style: TextStyle(
+                            : Text(
+                          _isEditMode ? 'Update Address' : 'Save Address',
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
                           ),
@@ -494,9 +695,84 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     );
   }
 
-  Widget _buildAddressTypeButton(String label, bool isSelected, VoidCallback onTap) {
+  Widget _buildFieldLabel(String label) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '*',
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.red.shade400,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _buildInputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: Colors.grey.shade400),
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Colors.red.shade300,
+          width: 2,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Colors.red,
+          width: 1,
+        ),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Colors.red,
+          width: 2,
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 16,
+      ),
+    );
+  }
+
+  Widget _buildAddressTypeButton(String label) {
+    final isSelected = _selectedAddressType == label;
+
     return GestureDetector(
-      onTap: _isLoading ? null : onTap,
+      onTap: _isLoading
+          ? null
+          : () {
+        setState(() {
+          _selectedAddressType = label;
+        });
+        _checkForChanges();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(

@@ -3,10 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/book_appointment_models.dart';
+import '../models/booking_request_model.dart';
 import '../models/tailor_detail_models.dart';
-import '../data/mock_tailor_detail_data.dart';
+import '../models/updated_booking_models.dart';
+import '../services/tailor_service.dart';
 import '../providers/profile_provider.dart';
-import '../screens//time_slot_picker.dart';
+import '../screens/time_slot_picker.dart';
 
 class TailorDetailScreen extends StatefulWidget {
   final String tailorId;
@@ -23,31 +25,50 @@ class TailorDetailScreen extends StatefulWidget {
 class _TailorDetailScreenState extends State<TailorDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late TailorDetail tailorDetail;
+  TailorDetail? tailorDetail;
+  bool isLoading = true;
+  String? errorMessage;
   String selectedGender = 'Men';
-  List<String> genderTabs = ['Men', 'Women', 'Kids', 'Designers'];
-  String selectedDate = 'Today';
-  String selectedTime = '12:00 PM';
+  List<String> genderTabs = ['Men', 'Women', 'Kids'];
+  String? selectedDate; // Changed to nullable
+  String? selectedTime; // Changed to nullable
   int totalItems = 0;
+
+  final TailorService _tailorService = TailorService();
 
   @override
   void initState() {
     super.initState();
-    _loadTailorDetail();
     _tabController = TabController(length: 3, vsync: this);
+    _loadTailorDetail();
   }
 
-  void _loadTailorDetail() {
-    final data = MockTailorDetailData.getTailorDetail(widget.tailorId);
+  Future<void> _loadTailorDetail() async {
     setState(() {
-      tailorDetail = TailorDetail.fromJson(data);
-      _calculateTotalItems();
+      isLoading = true;
+      errorMessage = null;
     });
+
+    try {
+      final detail = await _tailorService.getTailorDetail(widget.tailorId);
+      setState(() {
+        tailorDetail = detail;
+        isLoading = false;
+        _calculateTotalItems();
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMessage = e.toString();
+      });
+    }
   }
 
   void _calculateTotalItems() {
+    if (tailorDetail == null) return;
+
     int total = 0;
-    tailorDetail.services.forEach((gender, serviceGender) {
+    tailorDetail!.services.forEach((gender, serviceGender) {
       for (var category in serviceGender.categories) {
         for (var subCategory in category.subCategories) {
           total += subCategory.quantity;
@@ -60,8 +81,10 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   void _updateQuantity(String gender, String categoryId, String subCategoryId, int change) {
+    if (tailorDetail == null) return;
+
     setState(() {
-      final serviceGender = tailorDetail.services[gender];
+      final serviceGender = tailorDetail!.services[gender];
       if (serviceGender != null) {
         final category = serviceGender.categories
             .firstWhere((cat) => cat.categoryId == categoryId);
@@ -78,8 +101,10 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   void _toggleCategory(String gender, String categoryId) {
+    if (tailorDetail == null) return;
+
     setState(() {
-      final serviceGender = tailorDetail.services[gender];
+      final serviceGender = tailorDetail!.services[gender];
       if (serviceGender != null) {
         final category = serviceGender.categories
             .firstWhere((cat) => cat.categoryId == categoryId);
@@ -99,7 +124,13 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
+        child: isLoading
+            ? _buildLoadingState()
+            : errorMessage != null
+            ? _buildErrorState()
+            : tailorDetail == null
+            ? _buildEmptyState()
+            : Column(
           children: [
             _buildHeader(),
             _buildTabBar(),
@@ -117,6 +148,63 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return const Center(
+      child: CircularProgressIndicator(),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Failed to load tailor details',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              errorMessage ?? 'Unknown error',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loadTailorDetail,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade400,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return const Center(
+      child: Text('No tailor details available'),
     );
   }
 
@@ -149,7 +237,7 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      tailorDetail.name,
+                      tailorDetail!.name,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -160,7 +248,7 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                     Row(
                       children: [
                         Text(
-                          tailorDetail.rating.toString(),
+                          tailorDetail!.rating.toString(),
                           style: const TextStyle(
                             fontSize: 14,
                             color: Colors.black87,
@@ -173,14 +261,14 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                               (index) => Icon(
                             Icons.star,
                             size: 14,
-                            color: index < tailorDetail.rating.floor()
+                            color: index < tailorDetail!.rating.floor()
                                 ? Colors.orange
                                 : Colors.grey.shade300,
                           ),
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '(${tailorDetail.reviewCount})',
+                          '(${tailorDetail!.reviewCount})',
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey.shade600,
@@ -207,7 +295,7 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      tailorDetail.googleRating.toString(),
+                      tailorDetail!.googleRating.toString(),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -225,21 +313,21 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
               Icon(Icons.people_outline, size: 16, color: Colors.grey.shade600),
               const SizedBox(width: 4),
               Text(
-                '.${tailorDetail.distance.toStringAsFixed(2)} m',
+                '${tailorDetail!.distance.toStringAsFixed(2)} km',
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
               const SizedBox(width: 16),
               Icon(Icons.shopping_bag_outlined, size: 16, color: Colors.grey.shade600),
               const SizedBox(width: 4),
               Text(
-                tailorDetail.deliveryTime,
+                tailorDetail!.deliveryTime,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
               const SizedBox(width: 16),
               Icon(Icons.camera_alt_outlined, size: 16, color: Colors.grey.shade600),
               const SizedBox(width: 4),
               Text(
-                'starts from ₹${tailorDetail.startingPrice}',
+                'starts from ₹${tailorDetail!.startingPrice}',
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
             ],
@@ -323,10 +411,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
               imageUrl = 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9';
               bgColor = Colors.pink.shade100;
               break;
-            case 'Designers':
-              imageUrl = 'https://images.unsplash.com/photo-1509783236416-c9ad59bae472';
-              bgColor = Colors.purple.shade100;
-              break;
             default:
               imageUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d';
               bgColor = Colors.grey.shade100;
@@ -378,7 +462,7 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildServicesList() {
-    final serviceGender = tailorDetail.services[selectedGender];
+    final serviceGender = tailorDetail!.services[selectedGender];
     if (serviceGender == null || serviceGender.categories.isEmpty) {
       return Center(
         child: Text(
@@ -582,6 +666,15 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildGalleryTab() {
+    if (tailorDetail!.gallery.isEmpty) {
+      return Center(
+        child: Text(
+          'No gallery images available',
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+      );
+    }
+
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -590,9 +683,9 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
         mainAxisSpacing: 12,
         childAspectRatio: 0.8,
       ),
-      itemCount: tailorDetail.gallery.length,
+      itemCount: tailorDetail!.gallery.length,
       itemBuilder: (context, index) {
-        final item = tailorDetail.gallery[index];
+        final item = tailorDetail!.gallery[index];
         return Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
@@ -607,11 +700,20 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildReviewsTab() {
+    if (tailorDetail!.reviews.isEmpty) {
+      return Center(
+        child: Text(
+          'No reviews available',
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+      );
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: tailorDetail.reviews.length,
+      itemCount: tailorDetail!.reviews.length,
       itemBuilder: (context, index) {
-        final review = tailorDetail.reviews[index];
+        final review = tailorDetail!.reviews[index];
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(16),
@@ -710,6 +812,9 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildFooter() {
+    // Check if time slot is selected
+    final bool hasTimeSlot = selectedDate != null && selectedTime != null;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -752,22 +857,24 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
             ],
           ),
           const SizedBox(height: 12),
-          // NEW: Single unified time slot selector
           InkWell(
             onTap: _showTimeSlotPicker,
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: hasTimeSlot ? Colors.grey.shade50 : Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(
+                  color: hasTimeSlot ? Colors.grey.shade300 : Colors.orange.shade300,
+                  width: hasTimeSlot ? 1 : 2,
+                ),
               ),
               child: Row(
                 children: [
                   Icon(
                     Icons.calendar_today,
                     size: 18,
-                    color: Colors.grey.shade600,
+                    color: hasTimeSlot ? Colors.grey.shade600 : Colors.orange.shade700,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -775,27 +882,38 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          selectedDate,
-                          style: const TextStyle(
+                          hasTimeSlot ? selectedDate! : 'Choose Time Slot',
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: hasTimeSlot ? Colors.black87 : Colors.orange.shade700,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          selectedTime,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
+                        if (hasTimeSlot) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            selectedTime!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
-                        ),
+                        ] else ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Tap to select date and time',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                   Icon(
                     Icons.chevron_right,
-                    color: Colors.grey.shade600,
+                    color: hasTimeSlot ? Colors.grey.shade600 : Colors.orange.shade700,
                   ),
                 ],
               ),
@@ -805,11 +923,10 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                _navigateToBookAppointment();
-              },
+              onPressed: hasTimeSlot ? _navigateToBookAppointment : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red.shade400,
+                disabledBackgroundColor: Colors.grey.shade300,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -820,62 +937,40 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                 children: [
                   Text(
                     '$totalItems Selected',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
                     ),
                   ),
                   const SizedBox(width: 24),
                   Container(
                     width: 1,
                     height: 20,
-                    color: Colors.white.withOpacity(0.5),
+                    color: hasTimeSlot
+                        ? Colors.white.withOpacity(0.5)
+                        : Colors.grey.shade400,
                   ),
                   const SizedBox(width: 24),
-                  const Text(
+                  Text(
                     'Book Appointment',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
+                  Icon(
+                    Icons.arrow_forward,
+                    color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                    size: 20,
+                  ),
                 ],
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTimeSelector({required String label, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            Icon(Icons.keyboard_arrow_down, size: 20, color: Colors.grey.shade600),
-          ],
-        ),
       ),
     );
   }
@@ -898,22 +993,86 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
     );
   }
 
-  void _navigateToBookAppointment() {
-    // Collect all selected services
-    List<SelectedService> selectedServices = [];
+  DateTime _parseDateTime(String date, String time) {
+    DateTime baseDate;
+    final now = DateTime.now();
 
-    tailorDetail.services.forEach((gender, serviceGender) {
+    if (date.toLowerCase() == 'today') {
+      baseDate = now;
+    } else if (date.toLowerCase() == 'tomorrow') {
+      baseDate = now.add(const Duration(days: 1));
+    } else {
+      // Try to parse the date string
+      try {
+        baseDate = now;
+      } catch (e) {
+        baseDate = now;
+      }
+    }
+
+    // Parse time (e.g., "12:00 PM")
+    try {
+      final timeParts = time.split(' ');
+      final hourMin = timeParts[0].split(':');
+      int hour = int.parse(hourMin[0]);
+      final minute = int.parse(hourMin[1]);
+      final isPM = timeParts.length > 1 && timeParts[1].toUpperCase() == 'PM';
+
+      if (isPM && hour != 12) {
+        hour += 12;
+      } else if (!isPM && hour == 12) {
+        hour = 0;
+      }
+
+      return DateTime(
+        baseDate.year,
+        baseDate.month,
+        baseDate.day,
+        hour,
+        minute,
+      );
+    } catch (e) {
+      // If time parsing fails, default to current time
+      return DateTime(
+        baseDate.year,
+        baseDate.month,
+        baseDate.day,
+        now.hour,
+        now.minute,
+      );
+    }
+  }
+
+  void _navigateToBookAppointment() {
+    // Validate time slot is selected
+    if (selectedDate == null || selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a time slot first'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Collect all selected services as BookingCategoryExtended
+    List<BookingCategoryExtended> bookingCategories = [];
+
+    tailorDetail!.services.forEach((gender, serviceGender) {
       for (var category in serviceGender.categories) {
         for (var subCategory in category.subCategories) {
           if (subCategory.quantity > 0) {
-            selectedServices.add(
-              SelectedService(
+            bookingCategories.add(
+              BookingCategoryExtended(
+                gender: gender, // Men, Women, Kids
+                categoryId: category.categoryId,
+                subCategoryName: subCategory.name,
+                quantity: subCategory.quantity,
                 subCategoryId: subCategory.subCategoryId,
-                categoryName: category.categoryName,
                 serviceName: subCategory.name,
                 image: subCategory.image,
                 price: subCategory.price,
-                quantity: subCategory.quantity,
               ),
             );
           }
@@ -921,48 +1080,38 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       }
     });
 
-    if (selectedServices.isEmpty) {
+    if (bookingCategories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select at least one service'),
           backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
 
     // Calculate payment breakup
-    final totalTailoring = selectedServices.fold<int>(
+    final totalTailoring = bookingCategories.fold<int>(
       0,
-          (sum, service) => sum + service.totalPrice,
+          (sum, category) => sum + category.totalPrice,
     );
 
     final paymentBreakup = PaymentBreakup.calculate(
       totalTailoring: totalTailoring,
     );
 
-    // Get pickup location from profile
-    final profile = Provider.of<ProfileProvider>(context, listen: false).profile;
-    PickupLocation? pickupLocation;
-
-    if (profile.address != null && profile.address!.hasData) {
-      pickupLocation = PickupLocation(
-        addressType: profile.address!.addressType ?? 'Home',
-        houseFlatBlock: profile.address!.houseFlatBlock ?? '',
-        streetAndCity: profile.address!.streetAndCity ?? '',
-        // Remove landmark and pincode if they don't exist in AddressModel
-        // Only include if these fields exist in your AddressModel
-      );
-    }
+    // Convert selected date and time to DateTime
+    final requestedDateTime = _parseDateTime(selectedDate!, selectedTime!);
 
     // Create booking data
-    final bookingData = BookingData(
-      tailorId: tailorDetail.tailorId,
-      tailorName: tailorDetail.name,
-      selectedServices: selectedServices,
-      pickupDate: selectedDate,
-      pickupTime: selectedTime,
-      pickupLocation: pickupLocation,
+    final bookingData = BookingDataV2(
+      tailorId: tailorDetail!.tailorId,
+      tailorName: tailorDetail!.name,
+      categories: bookingCategories,
+      pickupDate: selectedDate!,
+      pickupTime: selectedTime!,
+      requestedDateTime: requestedDateTime,
       paymentBreakup: paymentBreakup,
     );
 
@@ -971,48 +1120,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       context,
       '/book-appointment',
       arguments: bookingData,
-    );
-  }
-
-  void _showBookingConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text('Confirm Booking'),
-        content: Text(
-          'Book appointment for $selectedDate at $selectedTime with $totalItems items?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Appointment booked successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade400,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
     );
   }
 }

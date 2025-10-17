@@ -1,37 +1,35 @@
-// screens/profiles_list_screen.dart
+// screens/address_list_screen.dart
 
 import 'package:flutter/material.dart';
-import '../models/user_profile_model.dart';
-import '../services/profile_service.dart';
+import '../services/address_service.dart';
 import '../services/auth_service.dart';
+import '../models/address_model.dart';
 
-class ProfilesListScreen extends StatefulWidget {
-  const ProfilesListScreen({Key? key}) : super(key: key);
+class AddressListScreen extends StatefulWidget {
+  const AddressListScreen({Key? key}) : super(key: key);
 
   @override
-  State<ProfilesListScreen> createState() => _ProfilesListScreenState();
+  State<AddressListScreen> createState() => _AddressListScreenState();
 }
 
-class _ProfilesListScreenState extends State<ProfilesListScreen> {
-  final ProfileService _profileService = ProfileService();
+class _AddressListScreenState extends State<AddressListScreen> {
+  final AddressService _addressService = AddressService();
   final AuthService _authService = AuthService();
-  List<UserProfileModel> _profiles = [];
+  List<AddressModel> _addresses = [];
   bool _isLoading = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadProfiles();
+    _loadAddresses();
   }
 
   Future<void> _handleUnauthorizedError() async {
-    // Clear stored auth data from secure storage
     await _authService.clearSession();
 
     if (!mounted) return;
 
-    // Show a message to the user
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Session expired. Please login again.'),
@@ -40,33 +38,33 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
       ),
     );
 
-    // Small delay to show the snackbar
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
 
-    // Navigate to login page and clear navigation stack
     Navigator.of(context).pushNamedAndRemoveUntil(
-      '/login', // Replace with your actual login route
+      '/login',
           (Route<dynamic> route) => false,
     );
   }
 
-  Future<void> _loadProfiles() async {
+  Future<void> _loadAddresses() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final profiles = await _profileService.getAllUserProfiles();
+      final addresses = await _addressService.getAllAddresses();
 
       if (!mounted) return;
 
       setState(() {
-        _profiles = profiles ?? [];
+        _addresses = addresses ?? [];
         _isLoading = false;
       });
+
+      debugPrint('✅ Loaded ${_addresses.length} addresses');
     } catch (e) {
       if (!mounted) return;
 
@@ -97,7 +95,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'My Profiles',
+          'My Addresses',
           style: TextStyle(
             color: Colors.black87,
             fontSize: 20,
@@ -109,7 +107,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
           ? _buildLoadingState()
           : _errorMessage != null
           ? _buildErrorState()
-          : _buildProfilesList(),
+          : _buildAddressList(),
     );
   }
 
@@ -123,7 +121,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Loading profiles...',
+            'Loading addresses...',
             style: TextStyle(
               fontSize: 16,
               color: Colors.grey.shade600,
@@ -166,7 +164,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _loadProfiles,
+              onPressed: _loadAddresses,
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
               style: ElevatedButton.styleFrom(
@@ -187,8 +185,8 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
     );
   }
 
-  Widget _buildProfilesList() {
-    if (_profiles.isEmpty) {
+  Widget _buildAddressList() {
+    if (_addresses.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -196,13 +194,13 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.person_outline,
+                Icons.location_off_outlined,
                 size: 80,
                 color: Colors.grey.shade300,
               ),
               const SizedBox(height: 16),
               Text(
-                'No profiles yet',
+                'No addresses yet',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -211,7 +209,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Create your first profile to get started',
+                'Add your first address to get started',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey.shade600,
@@ -221,20 +219,13 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () async {
-                  // Navigate to profile details with flag indicating it's from profiles list
-                  final result = await Navigator.pushNamed(
-                    context,
-                    '/profile-details',
-                    arguments: {'fromProfilesList': true},
-                  );
-
-                  // If profile was created successfully, reload the list
+                  final result = await Navigator.pushNamed(context, '/add-address');
                   if (result == true) {
-                    _loadProfiles();
+                    _loadAddresses();
                   }
                 },
                 icon: const Icon(Icons.add),
-                label: const Text('Add New Profile'),
+                label: const Text('Add New Address'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red.shade400,
                   foregroundColor: Colors.white,
@@ -261,7 +252,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Profiles created by you',
+                'Saved Addresses',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey.shade600,
@@ -273,15 +264,16 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
         ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _loadProfiles,
+            onRefresh: _loadAddresses,
+            color: Colors.red.shade400,
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _profiles.length + 1, // +1 for Add New Profile button
+              itemCount: _addresses.length + 1, // +1 for Add New Address button
               itemBuilder: (context, index) {
-                if (index == _profiles.length) {
-                  return _buildAddNewProfileButton();
+                if (index == _addresses.length) {
+                  return _buildAddNewAddressButton();
                 }
-                return _buildProfileCard(_profiles[index]);
+                return _buildAddressCard(_addresses[index]);
               },
             ),
           ),
@@ -290,17 +282,18 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
     );
   }
 
-  Widget _buildProfileCard(UserProfileModel profile) {
-    // Determine if this is the main user profile
-    final isMainProfile = profile.profileName.toLowerCase().contains('you') ||
-        profile.profileName.toLowerCase().contains('admin') ||
-        _profiles.indexOf(profile) == 0;
-
+  Widget _buildAddressCard(AddressModel address) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: address.isDefault
+            ? Border.all(
+          color: Colors.blue.shade400,
+          width: 2,
+        )
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -311,101 +304,119 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
       ),
       child: InkWell(
         onTap: () async {
-          // Navigate to profile edit screen
+          // Navigate to edit address screen with address data
           final result = await Navigator.pushNamed(
             context,
-            '/profile-details',
+            '/add-address',
             arguments: {
-              'editProfile': profile,
+              'mode': 'edit',
+              'address': address,
             },
           );
 
-          // If profile was updated successfully, reload the list
+          // Reload addresses if update was successful
           if (result == true) {
-            _loadProfiles();
+            _loadAddresses();
           }
         },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Profile Image
+              // Location Icon
               Container(
-                width: 60,
-                height: 60,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.grey.shade200,
-                  border: Border.all(
-                    color: Colors.grey.shade300,
-                    width: 2,
-                  ),
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: ClipOval(
-                  child: profile.imageUrl != null && profile.imageUrl!.isNotEmpty
-                      ? Image.network(
-                    profile.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.person,
-                        size: 30,
-                        color: Colors.grey.shade400,
-                      );
-                    },
-                  )
-                      : Icon(
-                    Icons.person,
-                    size: 30,
-                    color: Colors.grey.shade400,
-                  ),
+                child: Icon(
+                  Icons.location_on,
+                  color: Colors.black87,
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 16),
-              // Profile Info
+              // Address Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      profile.profileName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
                     Row(
                       children: [
-                        if (isMainProfile) ...[
+                        Expanded(
+                          child: Text(
+                            address.label.isNotEmpty
+                                ? address.label
+                                : _formatAddressType(address.addressType),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (address.isDefault)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: Colors.blue.shade400,
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              'Default',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${address.street}, ${address.city}, ${address.state}, ${address.pincode}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (address.mobile.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.phone,
+                            size: 14,
+                            color: Colors.grey.shade500,
+                          ),
+                          const SizedBox(width: 6),
                           Text(
-                            'You (admin)',
+                            address.mobile,
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 13,
                               color: Colors.grey.shade600,
                             ),
                           ),
-                          Text(
-                            ' • ',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade400,
-                            ),
-                          ),
                         ],
-                        Text(
-                          '${profile.measurements.length} measurement${profile.measurements.length != 1 ? 's' : ''}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -413,7 +424,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
               Icon(
                 Icons.chevron_right,
                 color: Colors.grey.shade400,
-                size: 28,
+                size: 24,
               ),
             ],
           ),
@@ -422,21 +433,21 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
     );
   }
 
-  Widget _buildAddNewProfileButton() {
+  Widget _buildAddNewAddressButton() {
     return Container(
       margin: const EdgeInsets.only(top: 8, bottom: 24),
       child: InkWell(
         onTap: () async {
-          // Navigate to profile details with flag indicating it's from profiles list
+          // Navigate to add address with flag indicating it's from address list
           final result = await Navigator.pushNamed(
             context,
-            '/profile-details',
-            arguments: {'fromProfilesList': true},
+            '/add-address',
+            arguments: {'fromAddressList': true},
           );
 
-          // If profile was created successfully, reload the list
+          // If address was added successfully, reload the list
           if (result == true) {
-            _loadProfiles();
+            _loadAddresses();
           }
         },
         borderRadius: BorderRadius.circular(12),
@@ -452,7 +463,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Add New Profile',
+                'Add New Address',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -464,5 +475,9 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
         ),
       ),
     );
+  }
+
+  String _formatAddressType(String type) {
+    return type[0].toUpperCase() + type.substring(1).toLowerCase();
   }
 }

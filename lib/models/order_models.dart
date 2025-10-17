@@ -2,34 +2,36 @@
 
 import 'package:flutter/material.dart';
 
-class OrderItemModel {
+class OrderItem {
   final String id;
   final int quantity;
   final String itemType;
   final String itemCategory;
 
-  OrderItemModel({
+  OrderItem({
     required this.id,
     required this.quantity,
     required this.itemType,
     required this.itemCategory,
   });
 
-  factory OrderItemModel.fromJson(Map<String, dynamic> json) {
-    return OrderItemModel(
-      id: json['id'],
-      quantity: json['quantity'],
-      itemType: json['itemType'],
-      itemCategory: json['itemCategory'],
+  factory OrderItem.fromJson(Map<String, dynamic> json) {
+    return OrderItem(
+      id: json['id'] ?? '',
+      quantity: json['quantity'] ?? 1,
+      itemType: json['itemType'] ?? '',
+      itemCategory: json['itemCategory'] ?? '',
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'quantity': quantity,
-    'itemType': itemType,
-    'itemCategory': itemCategory,
-  };
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'quantity': quantity,
+      'itemType': itemType,
+      'itemCategory': itemCategory,
+    };
+  }
 }
 
 class OrderModel {
@@ -39,10 +41,10 @@ class OrderModel {
   final String tailorImage;
   final String pickupTime;
   final String pickupDate;
-  final List<OrderItemModel> items;
+  final List<OrderItem> items;
   final String status;
   final String? expectedDelivery;
-  final String orderType; // 'upcoming', 'current', 'past'
+  final String orderType;
   final double? rating;
 
   OrderModel({
@@ -61,45 +63,54 @@ class OrderModel {
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     return OrderModel(
-      id: json['id'],
-      tailorId: json['tailorId'],
-      tailorName: json['tailorName'],
-      tailorImage: json['tailorImage'],
-      pickupTime: json['pickupTime'],
-      pickupDate: json['pickupDate'],
-      items: (json['items'] as List)
-          .map((item) => OrderItemModel.fromJson(item))
-          .toList(),
-      status: json['status'],
+      id: json['id'] ?? '',
+      tailorId: json['tailorId'] ?? '',
+      tailorName: json['tailorName'] ?? '',
+      tailorImage: json['tailorImage'] ?? '',
+      pickupTime: json['pickupTime'] ?? '',
+      pickupDate: json['pickupDate'] ?? '',
+      items: (json['items'] as List?)
+          ?.map((item) => OrderItem.fromJson(item))
+          .toList() ??
+          [],
+      status: json['status'] ?? '',
       expectedDelivery: json['expectedDelivery'],
-      orderType: json['orderType'],
+      orderType: json['orderType'] ?? '',
       rating: json['rating']?.toDouble(),
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'tailorId': tailorId,
-    'tailorName': tailorName,
-    'tailorImage': tailorImage,
-    'pickupTime': pickupTime,
-    'pickupDate': pickupDate,
-    'items': items.map((item) => item.toJson()).toList(),
-    'status': status,
-    'expectedDelivery': expectedDelivery,
-    'orderType': orderType,
-    'rating': rating,
-  };
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'tailorId': tailorId,
+      'tailorName': tailorName,
+      'tailorImage': tailorImage,
+      'pickupTime': pickupTime,
+      'pickupDate': pickupDate,
+      'items': items.map((item) => item.toJson()).toList(),
+      'status': status,
+      'expectedDelivery': expectedDelivery,
+      'orderType': orderType,
+      'rating': rating,
+    };
+  }
 
-  // Get status color
   Color getStatusColor() {
     switch (status.toLowerCase()) {
+      case 'requested':
       case 'order confirmed':
-        return Colors.green;
-      case 'stitching in progress':
-        return Colors.orange;
-      case 'delivered':
+      case 'confirmed':
         return Colors.blue;
+      case 'stitching in progress':
+      case 'in progress':
+        return Colors.orange;
+      case 'ready for delivery':
+      case 'ready':
+        return Colors.purple;
+      case 'delivered':
+      case 'completed':
+        return Colors.green;
       case 'cancelled':
         return Colors.red;
       default:
@@ -107,6 +118,10 @@ class OrderModel {
     }
   }
 
-  // Check if order can be rated
-  bool get canBeRated => orderType == 'past' && rating == null;
+  bool get canBeRated {
+    return orderType == 'past' &&
+        rating == null &&
+        (status.toLowerCase() == 'delivered' ||
+            status.toLowerCase() == 'completed');
+  }
 }

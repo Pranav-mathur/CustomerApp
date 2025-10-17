@@ -1,9 +1,12 @@
 // screens/my_orders_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'dart:convert';
 import '../models/order_models.dart';
-import '../data/mock_orders_data.dart';
-import 'order_details_screen.dart';
+import '../providers/auth_provider.dart';
+import '../services/auth_service.dart';
 
 class MyOrdersScreen extends StatefulWidget {
   const MyOrdersScreen({Key? key}) : super(key: key);
@@ -16,6 +19,8 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
   List<OrderModel> upcomingOrders = [];
   List<OrderModel> currentOrders = [];
   List<OrderModel> pastOrders = [];
+  bool isLoading = true;
+  String? errorMessage;
 
   @override
   void initState() {
@@ -23,22 +28,128 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
     _loadOrdersData();
   }
 
-  void _loadOrdersData() {
-    final data = MockOrdersData.getOrdersData();
-
+  Future<void> _loadOrdersData() async {
     setState(() {
-      upcomingOrders = (data['upcomingOrders'] as List)
-          .map((json) => OrderModel.fromJson(json))
-          .toList();
-
-      currentOrders = (data['currentOrders'] as List)
-          .map((json) => OrderModel.fromJson(json))
-          .toList();
-
-      pastOrders = (data['pastOrders'] as List)
-          .map((json) => OrderModel.fromJson(json))
-          .toList();
+      isLoading = true;
+      errorMessage = null;
     });
+
+    try {
+      // final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      // Replace with your actual API URL and token
+      const String apiUrl = 'http://100.27.221.127:3000/api/v1/bookings';
+      final AuthService _authService = AuthService();// Get this from your auth service
+      final token = await _authService.getToken();
+
+      final response = await http.get(
+        Uri.parse(apiUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        final data = jsonData['data'];
+
+        setState(() {
+          upcomingOrders = (data['upcomingOrders'] as List)
+              .map((json) => _convertApiToOrderModel(json, 'upcoming'))
+              .toList();
+
+          currentOrders = (data['currentOrders'] as List)
+              .map((json) => _convertApiToOrderModel(json, 'current'))
+              .toList();
+
+          pastOrders = (data['pastOrders'] as List)
+              .map((json) => _convertApiToOrderModel(json, 'past'))
+              .toList();
+
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          errorMessage = 'Failed to load orders. Status: ${response.statusCode}';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error loading orders: $e';
+        isLoading = false;
+      });
+    }
+  }
+
+  OrderModel _convertApiToOrderModel(Map<String, dynamic> apiData, String orderType) {
+    // Parse requestedDateTime to extract time and date
+    DateTime requestedDateTime = DateTime.parse(apiData['requestedDateTime']);
+    String pickupTime = _formatTime(requestedDateTime);
+    String pickupDate = _formatDate(requestedDateTime);
+
+    // Convert categories to items
+    List<OrderItem> items = (apiData['categories'] as List).map((category) {
+      return OrderItem(
+        id: category['subCategoryName'] ?? '',
+        quantity: category['quantity'] ?? 1,
+        itemType: category['categoryName'] ?? '',
+        itemCategory: category['subCategoryName'] ?? '',
+      );
+    }).toList();
+
+    // Calculate expected delivery for current orders
+    String? expectedDelivery;
+    if (orderType == 'current' && apiData['categories'] != null && (apiData['categories'] as List).isNotEmpty) {
+      var firstCategory = apiData['categories'][0];
+      if (firstCategory['deliveryTime'] != null) {
+        int deliveryDays = int.tryParse(firstCategory['deliveryTime'].toString()) ?? 0;
+        DateTime deliveryDate = requestedDateTime.add(Duration(days: deliveryDays));
+        expectedDelivery = _formatDateShort(deliveryDate);
+      }
+    }
+
+    return OrderModel(
+      id: apiData['bookingId'] ?? '',
+      tailorId: apiData['tailorId'] ?? '',
+      tailorName: apiData['tailorName'] ?? '',
+      tailorImage: apiData['tailorProfilePic'] ?? '',
+      pickupTime: pickupTime,
+      pickupDate: pickupDate,
+      items: items,
+      status: apiData['status'] ?? 'Unknown',
+      expectedDelivery: expectedDelivery,
+      orderType: orderType,
+      rating: null, // Rating not provided in API response
+    );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    int hour = dateTime.hour;
+    int minute = dateTime.minute;
+    String period = hour >= 12 ? 'PM' : 'AM';
+
+    if (hour > 12) {
+      hour -= 12;
+    } else if (hour == 0) {
+      hour = 12;
+    }
+
+    String minuteStr = minute.toString().padLeft(2, '0');
+    return '$hour:$minuteStr $period';
+  }
+
+  String _formatDate(DateTime dateTime) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${dateTime.day} ${months[dateTime.month - 1]}';
+  }
+
+  String _formatDateShort(DateTime dateTime) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    String year = dateTime.year.toString().substring(2);
+    return '${dateTime.day} ${months[dateTime.month - 1]} \'$year';
   }
 
   @override
@@ -61,7 +172,27 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadOrdersData,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      )
+          : SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -82,6 +213,21 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
               _buildSectionTitle('Past Orders'),
               ...pastOrders.map((order) => _buildOrderCard(order)),
             ],
+
+            // Empty state
+            if (upcomingOrders.isEmpty && currentOrders.isEmpty && pastOrders.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32.0),
+                  child: Text(
+                    'No orders found',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              ),
 
             const SizedBox(height: 20),
           ],

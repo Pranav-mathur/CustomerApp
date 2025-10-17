@@ -74,16 +74,16 @@ class ProfileService {
     required String? imageUrl,
     required List<MeasurementModel> measurements,
     required AddressModel? address,
+    double? latitude,  // Add this
+    double? longitude, // Add this
   }) async {
     try {
-      // Get token from secure storage via auth service
       final token = await _authService.getToken();
 
       if (token == null || token.isEmpty) {
         throw Exception('Authentication token not found. Please login again.');
       }
 
-      // Get phone number from secure storage
       final phoneNumber = await _authService.getPhoneNumber();
 
       if (phoneNumber == null || phoneNumber.isEmpty) {
@@ -94,11 +94,11 @@ class ProfileService {
       final measurementsArray = measurements.map((m) {
         return {
           "type": m.name.toLowerCase(),
-          "value": "${m.value} ${m.unit}"
+          "value": m.value
         };
       }).toList();
 
-      // Build request payload
+      // Build request payload with location
       final payload = {
         "profileName": profileName,
         "mobileNumber": phoneNumber,
@@ -106,15 +106,19 @@ class ProfileService {
         "email": email,
         "imageUrl": imageUrl ?? '',
         "measurements": measurementsArray,
-        "address": {
-          "houseFlatBlock": address?.houseFlatBlock ?? '',
-          "apartmentRoadArea": address?.apartmentRoadArea ?? '',
-          "streetAndCity": address?.streetAndCity ?? '',
-          "addressType": address?.addressType ?? ''
-        }
+        // "address": {
+        //   "houseFlatBlock": address?.houseFlatBlock ?? '',
+        //   "apartmentRoadArea": address?.apartmentRoadArea ?? '',
+        //   "streetAndCity": address?.streetAndCity ?? '',
+        //   "addressType": address?.addressType ?? ''
+        // },
+        // Add location data if available
+        if (latitude != null && longitude != null)
+          "location": {
+            "latitude": latitude,
+            "longitude": longitude,
+          }
       };
-
-
 
       debugPrint('✅ Creating profile with payload: ${jsonEncode(payload)}');
 
@@ -149,6 +153,7 @@ class ProfileService {
     }
   }
 
+
   Future<Map<String, dynamic>?> updateProfile({
     required String profileId,
     required String profileName,
@@ -181,12 +186,12 @@ class ProfileService {
         "email": email,
         "imageUrl": imageUrl ?? '',
         "measurements": measurementsArray,
-        "address": {
-          "houseFlatBlock": address?.houseFlatBlock ?? '',
-          "apartmentRoadArea": address?.apartmentRoadArea ?? '',
-          "streetAndCity": address?.streetAndCity ?? '',
-          "addressType": address?.addressType ?? ''
-        }
+        // "address": {
+        //   "houseFlatBlock": address?.houseFlatBlock ?? '',
+        //   "apartmentRoadArea": address?.apartmentRoadArea ?? '',
+        //   "streetAndCity": address?.streetAndCity ?? '',
+        //   "addressType": address?.addressType ?? ''
+        // }
       };
 
       debugPrint('✅ Updating profile with payload: ${jsonEncode(payload)}');

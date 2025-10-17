@@ -471,16 +471,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         ],
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        address != null && address.hasData
-                            ? '${address.houseFlatBlock ?? ''}, ${address.streetAndCity ?? ''}'
-                            .length >
-                            30
-                            ? '${address.houseFlatBlock ?? ''}, ${address.streetAndCity ?? ''}'
-                            .substring(0, 30) +
-                            '...'
-                            : '${address.houseFlatBlock ?? ''}, ${address.streetAndCity ?? ''}'
-                            : 'SNN Raj Vista, Koramangala...',
+                      Text('SNN Raj Vista, Koramangala...',
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade600,
@@ -996,10 +987,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (isHorizontal) {
       return GestureDetector(
         onTap: () {
+          // Navigate with the tailor ID from the API
           Navigator.pushNamed(
             context,
             '/tailor-detail',
-            arguments: tailor.id,
+            arguments: tailor.id, // Make sure this is the correct ID field from your TailorModel
           );
         },
         child: Container(
@@ -1187,10 +1179,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     } else {
       return GestureDetector(
         onTap: () {
+          // Navigate with the tailor ID from the API
           Navigator.pushNamed(
             context,
             '/tailor-detail',
-            arguments: tailor.id,
+            arguments: tailor.id, // Make sure this is the correct ID field from your TailorModel
           );
         },
         child: Container(
@@ -1512,19 +1505,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             Navigator.pushNamed(context, '/my-orders');
                           },
                         ),
-                        _buildDrawerItem(
-                          icon: Icons.favorite_border,
-                          title: 'My Favourites',
-                          onTap: () {
-                            Navigator.pop(context);
-                          },
-                        ),
+                        // _buildDrawerItem(
+                        //   icon: Icons.favorite_border,
+                        //   title: 'My Favourites',
+                        //   onTap: () {
+                        //     Navigator.pop(context);
+                        //   },
+                        // ),
                         _buildDrawerItem(
                           icon: Icons.location_on_outlined,
                           title: 'Saved Addresses',
                           onTap: () {
                             Navigator.pop(context);
-                            Navigator.pushNamed(context, '/add-address');
+                            Navigator.pushNamed(context, '/address-list'); // ← Changed route
                           },
                         ),
                         _buildDrawerItem(
