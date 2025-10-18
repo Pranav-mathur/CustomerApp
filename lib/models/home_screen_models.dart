@@ -170,8 +170,25 @@ class TailorCategory {
   });
 
   factory TailorCategory.fromJson(Map<String, dynamic> json) {
+    // Handle case where category_id might be an object or a string
+    String parsedCategoryId = '';
+
+    if (json['category_id'] != null) {
+      if (json['category_id'] is String) {
+        parsedCategoryId = json['category_id'];
+      } else if (json['category_id'] is Map) {
+        // If it's an object, extract the _id field
+        parsedCategoryId = json['category_id']['_id']?.toString() ?? '';
+      }
+    }
+
+    // Fallback to other possible field names
+    if (parsedCategoryId.isEmpty) {
+      parsedCategoryId = json['_id']?.toString() ?? json['id']?.toString() ?? '';
+    }
+
     return TailorCategory(
-      categoryId: json['category_id']?.toString() ?? '',
+      categoryId: parsedCategoryId,
       subCategoryName: json['sub_category_name'] ?? '',
       price: (json['price'] ?? 0).toDouble(),
       deliveryTime: json['delivery_time'] ?? '',

@@ -1,14 +1,16 @@
 // screens/book_appointment_screen_v2.dart
 
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-// import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/address_model.dart';
 import '../models/updated_booking_models.dart';
 import '../models/booking_request_model.dart';
 import '../services/address_service.dart';
 import '../services/auth_service.dart';
+import '../services/profile_service.dart';
 
 class BookAppointmentScreenV2 extends StatefulWidget {
   final BookingDataV2 bookingData;
@@ -25,14 +27,21 @@ class BookAppointmentScreenV2 extends StatefulWidget {
 class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
   late BookingDataV2 bookingData;
   final AddressService _addressService = AddressService();
+  final ProfileService _profileService = ProfileService();
+  final ImagePicker _picker = ImagePicker();
 
-  // Replace with your actual API base URL
   static const String baseUrl = 'YOUR_API_BASE_URL';
 
   List<AddressModel> addresses = [];
   bool isLoadingAddresses = true;
   String? addressError;
   bool isProcessingPayment = false;
+
+  // Fabric upload states
+  List<String> _fabricReferenceImages = [];
+  String _fabricDetails = '';
+  bool _isUploadingFabricImage = false;
+  final TextEditingController _fabricNotesController = TextEditingController();
 
   @override
   void initState() {
@@ -41,35 +50,24 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
     _loadAddresses();
   }
 
-  // Get JWT token from shared preferences
-  // Future<String?> _getAuthToken() async {
-  //   try {
-  //     final prefs = await SharedPreferences.getInstance();
-  //     return prefs.getString('auth_token');
-  //   } catch (e) {
-  //     print('Error getting auth token: $e');
-  //     return null;
-  //   }
-  // }
+  @override
+  void dispose() {
+    _fabricNotesController.dispose();
+    super.dispose();
+  }
 
-  // Create booking API call with address details
   Future<Map<String, dynamic>?> _createBookingAPI(Map<String, dynamic> bookingData) async {
     try {
       const String apiUrl = 'http://100.27.221.127:3000/api/v1/bookings';
-      final AuthService _authService = AuthService();// Get this from your auth service
-      final token = await _authService.getToken();
+      final AuthService authService = AuthService();
+      final token = await authService.getToken();
 
       if (token == null) {
         throw Exception('Authentication token not found. Please login again.');
       }
 
-      final url = Uri.parse('$apiUrl');
+      final url = Uri.parse(apiUrl);
 
-      if (token == null) {
-        throw Exception('Authentication token not found. Please login again.');
-      }
-
-      // Add address details to the booking data
       if (this.bookingData.selectedAddress != null) {
         final address = this.bookingData.selectedAddress!;
         bookingData['address'] = {
@@ -83,8 +81,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
           'isDefault': address.isDefault,
         };
       }
-
-      // final url = Uri.parse('$baseUrl/api/bookings');
 
       print('Calling API: $url');
       print('Request Body: ${json.encode(bookingData)}');
@@ -102,22 +98,17 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
       print('Response Body: ${response.body}');
 
       if (response.statusCode == 201) {
-        // Success - Parse the response
         final responseData = json.decode(response.body);
         return responseData;
       } else if (response.statusCode == 401) {
-        // Unauthorized - Token expired or invalid
         throw Exception('Session expired. Please login again.');
       } else if (response.statusCode == 400) {
-        // Bad request - Validation error
         final errorData = json.decode(response.body);
         final errorMessage = errorData['message'] ?? 'Invalid booking data';
         throw Exception(errorMessage);
       } else if (response.statusCode == 500) {
-        // Server error
         throw Exception('Server error. Please try again later.');
       } else {
-        // Other errors
         throw Exception('Failed to create booking. Status: ${response.statusCode}');
       }
     } catch (e) {
@@ -139,7 +130,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
         if (fetchedAddresses != null) {
           addresses = fetchedAddresses;
 
-          // Auto-select default address if available and no address is selected
           if (bookingData.selectedAddress == null && addresses.isNotEmpty) {
             final defaultAddress = addresses.firstWhere(
                   (addr) => addr.isDefault,
@@ -170,6 +160,59 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
         );
       }
     }
+  }
+
+  Future<void> _pickAndUploadFabricImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _isUploadingFabricImage = true;
+        });
+
+        try {
+          final imageUrl = await _profileService.uploadProfileImage(File(image.path));
+
+          setState(() {
+            _fabricReferenceImages.add(imageUrl);
+            _isUploadingFabricImage = false;
+          });
+
+          _showSuccessSnackBar('Image uploaded successfully!');
+          debugPrint('✅ Fabric image uploaded: $imageUrl');
+        } catch (e) {
+          setState(() {
+            _isUploadingFabricImage = false;
+          });
+
+          if (e.toString().contains('Unauthorized') ||
+              e.toString().contains('Invalid token') ||
+              e.toString().contains('Authentication token not found')) {
+            _showErrorSnackBar('Session expired. Please login again.');
+            return;
+          }
+
+          _showErrorSnackBar('Failed to upload image: ${e.toString()}');
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isUploadingFabricImage = false;
+      });
+      _showErrorSnackBar('Failed to pick image: $e');
+    }
+  }
+
+  void _removeFabricImage(int index) {
+    setState(() {
+      _fabricReferenceImages.removeAt(index);
+    });
   }
 
   void _updateCategoryQuantity(String subCategoryId, int change) {
@@ -263,14 +306,294 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
   }
 
   void _showAddFabricBottomSheet() {
+    // Reset state when opening
+    _fabricNotesController.text = _fabricDetails;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: Colors.grey.shade200),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        image: const DecorationImage(
+                          image: NetworkImage(
+                            'https://images.unsplash.com/photo-1591195853828-11db59a44f6b',
+                          ),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Text(
+                        'Get Fabric',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Fabric Details Section
+                      const Text(
+                        'Fabric Details',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _fabricNotesController,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          hintText: 'Add if any notes',
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setModalState(() {
+                            _fabricDetails = value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Reference Image Section
+                      const Text(
+                        'Reference Image',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Display uploaded images
+                      if (_fabricReferenceImages.isNotEmpty) ...[
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: _fabricReferenceImages.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final imageUrl = entry.value;
+                            return Stack(
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.shade300),
+                                    image: DecorationImage(
+                                      image: NetworkImage(imageUrl),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: -8,
+                                  right: -8,
+                                  child: IconButton(
+                                    icon: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.shade400,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      setModalState(() {
+                                        _removeFabricImage(index);
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // Upload button
+                      InkWell(
+                        onTap: _isUploadingFabricImage ? null : () async {
+                          await _pickAndUploadFabricImage();
+                          setModalState(() {});
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              style: BorderStyle.solid,
+                              width: 2,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (_isUploadingFabricImage)
+                                CircularProgressIndicator(
+                                  color: Colors.red.shade400,
+                                )
+                              else
+                                Icon(
+                                  Icons.cloud_upload_outlined,
+                                  size: 40,
+                                  color: Colors.grey.shade600,
+                                ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _isUploadingFabricImage
+                                    ? 'Uploading...'
+                                    : 'Upload Fabric Reference',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                              if (!_isUploadingFabricImage) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tap to upload image',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Bottom Button
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (_fabricReferenceImages.isEmpty && _fabricDetails.trim().isEmpty) {
+                          _showErrorSnackBar('Please add fabric details or upload at least one image');
+                          return;
+                        }
+
+                        setState(() {
+                          bookingData = bookingData.copyWith(
+                            bringOwnFabric: false, // Getting fabric from tailor
+                          );
+                        });
+                        Navigator.pop(context);
+                        _showSuccessSnackBar('Fabric details added successfully!');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade400,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Add Items',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      builder: (context) => _buildAddFabricSheet(),
-    );
+    ).then((_) {
+      // Update parent state when modal closes
+      setState(() {});
+    });
   }
 
   void _showPickupTimeBottomSheet() {
@@ -294,6 +617,29 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
     );
   }
 
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (bookingData.categories.isEmpty) {
@@ -301,6 +647,8 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
         Navigator.pop(context);
       });
     }
+
+    final hasFabricDetails = _fabricReferenceImages.isNotEmpty || _fabricDetails.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -332,7 +680,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
                     children: [
                       const SizedBox(height: 16),
                       _buildSectionTitle('Selected Services'),
-                      _buildAddFabricCard(),
+                      _buildAddFabricCard(hasFabricDetails),
                       const SizedBox(height: 12),
                       _buildSelectedServicesList(),
                       const SizedBox(height: 24),
@@ -396,11 +744,11 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
     );
   }
 
-  Widget _buildAddFabricCard() {
+  Widget _buildAddFabricCard(bool hasFabricDetails) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.brown.shade700,
+        color: hasFabricDetails ? Colors.green.shade700 : Colors.brown.shade700,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Material(
@@ -431,7 +779,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        bookingData.bringOwnFabric ? 'Fabric Added' : 'Get Fabric',
+                        hasFabricDetails ? 'Fabric Added' : 'Get Fabric',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -440,8 +788,8 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        bookingData.bringOwnFabric
-                            ? 'Bringing own fabric'
+                        hasFabricDetails
+                            ? '${_fabricReferenceImages.length} image${_fabricReferenceImages.length != 1 ? 's' : ''} uploaded'
                             : 'we\'ll bring fabric with us',
                         style: TextStyle(
                           fontSize: 14,
@@ -457,13 +805,23 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
                     color: Colors.red.shade400,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    bookingData.bringOwnFabric ? 'Change' : '+ Add Fabric',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (hasFabricDetails)
+                        const Icon(Icons.edit, size: 16, color: Colors.white)
+                      else
+                        const Icon(Icons.add, size: 16, color: Colors.white),
+                      const SizedBox(width: 4),
+                      Text(
+                        hasFabricDetails ? 'Edit' : 'Add Fabric',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -503,128 +861,128 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  image: DecorationImage(
-                    image: NetworkImage(category.image),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      category.serviceName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${category.subCategoryName} · ₹${category.price}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.red.shade400,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove, size: 18, color: Colors.white),
-                      onPressed: () => _updateCategoryQuantity(category.subCategoryId, -1),
-                      padding: const EdgeInsets.all(4),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    ),
-                    Container(
-                      constraints: const BoxConstraints(minWidth: 24),
-                      child: Text(
-                        '${category.quantity}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add, size: 18, color: Colors.white),
-                      onPressed: () => _updateCategoryQuantity(category.subCategoryId, 1),
-                      padding: const EdgeInsets.all(4),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      Row(
+      children: [
+      Container(
+      width: 70,
+        height: 70,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          image: DecorationImage(
+            image: NetworkImage(category.image),
+            fit: BoxFit.cover,
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _showTagDialog(category),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.grey.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  child: Text(
-                    category.tag ?? 'Tag',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              category.serviceName,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${category.subCategoryName} · ₹${category.price}',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+      Container(
+        decoration: BoxDecoration(
+          color: Colors.red.shade400,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.remove, size: 18, color: Colors.white),
+              onPressed: () => _updateCategoryQuantity(category.subCategoryId, -1),
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+            Container(
+              constraints: const BoxConstraints(minWidth: 24),
+              child: Text(
+                '${category.quantity}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _showReferenceDialog(category),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.grey.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        category.reference ?? 'Reference',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.info_outline,
-                        size: 16,
-                        color: Colors.grey.shade600,
-                      ),
-                    ],
-                  ),
-                ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add, size: 18, color: Colors.white),
+              onPressed: () => _updateCategoryQuantity(category.subCategoryId, 1),
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+          ],
+        ),
+      ),
+      ],
+    ),
+    const SizedBox(height: 12),
+    Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () => _showTagDialog(category),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.grey.shade300),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            child: Text(
+              category.tag ?? 'Tag',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade700,
               ),
-            ],
+            ),
           ),
+        ),
+    const SizedBox(width: 8),
+    Expanded(
+      child: OutlinedButton(
+        onPressed: () => _showReferenceDialog(category),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.grey.shade300),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              category.reference ?? 'Reference',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.info_outline,
+              size: 16,
+              color: Colors.grey.shade600,
+            ),
+          ],
+        ),
+      ),
+    ),
+      ],
+    ),
         ],
       ),
     );
@@ -909,49 +1267,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
     );
   }
 
-  Widget _buildAddFabricSheet() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Fabric Options',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 24),
-          ListTile(
-            leading: Icon(Icons.shopping_bag, color: Colors.red.shade400),
-            title: const Text('Get fabric from tailor'),
-            subtitle: const Text('Tailor will bring fabric catalog'),
-            onTap: () {
-              setState(() {
-                bookingData = bookingData.copyWith(bringOwnFabric: false);
-              });
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.checkroom, color: Colors.blue.shade400),
-            title: const Text('I\'ll bring my own fabric'),
-            subtitle: const Text('Bring your fabric to appointment'),
-            onTap: () {
-              setState(() {
-                bookingData = bookingData.copyWith(bringOwnFabric: true);
-              });
-              Navigator.pop(context);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPickupTimeSheet() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1227,6 +1542,8 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
   }
 
   void _showConfirmationDialog() {
+    final hasFabricDetails = _fabricReferenceImages.isNotEmpty || _fabricDetails.trim().isNotEmpty;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1251,6 +1568,11 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
               'Services: ${bookingData.categories.length} items',
               style: TextStyle(color: Colors.grey.shade700),
             ),
+            if (hasFabricDetails)
+              Text(
+                'Fabric: ${_fabricReferenceImages.length} reference image${_fabricReferenceImages.length != 1 ? 's' : ''}',
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
             Text(
               'Pickup: ${bookingData.pickupDate} ${bookingData.pickupTime}',
               style: TextStyle(color: Colors.grey.shade700),
@@ -1293,14 +1615,21 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
     });
 
     try {
-      // Create the booking request
       final bookingRequest = bookingData.toBookingRequest();
       final requestJson = bookingRequest.toJson();
 
-      print('Booking Request JSON (before adding address):');
-      print(requestJson);
+      // Add fabric details at the root level (same level as profileId, etc.)
+      if (_fabricReferenceImages.isNotEmpty) {
+        requestJson['referenceImages'] = _fabricReferenceImages;
+      }
 
-      // Call the API (address will be added inside _createBookingAPI)
+      if (_fabricDetails.trim().isNotEmpty) {
+        requestJson['fabricNotes'] = _fabricDetails.trim();
+      }
+
+      print('Booking Request JSON (with fabric details):');
+      print(json.encode(requestJson));
+
       final response = await _createBookingAPI(requestJson);
 
       setState(() {
@@ -1308,7 +1637,13 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
       });
 
       if (response != null) {
-        // Show success dialog
+        // Clear fabric data after successful booking
+        setState(() {
+          _fabricReferenceImages.clear();
+          _fabricDetails = '';
+          _fabricNotesController.clear();
+        });
+
         _showSuccessDialog(
           bookingId: response['bookingId'] ?? '',
           totalPrice: response['totalPrice']?.toString() ?? '0',
@@ -1458,16 +1793,9 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
           if (paymentLink != null) ...[
             ElevatedButton(
               onPressed: () {
-                // TODO: Open payment link or navigate to payment screen
-                // You can use url_launcher package: launch(paymentLink);
-                // Or navigate to your payment screen
                 Navigator.pop(context);
                 Navigator.pop(context);
                 Navigator.pop(context);
-
-                // Example: If you want to open the payment link
-                // import 'package:url_launcher/url_launcher.dart';
-                // launchUrl(Uri.parse(paymentLink));
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade600,
@@ -1485,10 +1813,9 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
           ],
           OutlinedButton(
             onPressed: () {
-              // Navigate back to home (close all booking screens)
-              Navigator.pop(context); // Close success dialog
-              Navigator.pop(context); // Close booking screen
-              Navigator.pop(context); // Go back to previous screen/home
+              Navigator.pop(context);
+              Navigator.pop(context);
+              Navigator.pop(context);
             },
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
