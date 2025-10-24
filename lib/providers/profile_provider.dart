@@ -3,25 +3,116 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import '../models/family_profile_model.dart';
 import '../models/profile_model.dart';
 import '../models/address_model.dart';
-import '../models/family_profile_model.dart';
+import '../models/user_profile_model.dart'; // Add this import
 import '../services/profile_service.dart';
 import '../services/location_service.dart';
+import '../services/address_service.dart'; // Add this import
 
 class ProfileProvider extends ChangeNotifier {
   ProfileModel _profile = ProfileModel();
   final ProfileService _profileService = ProfileService();
   final LocationService _locationService = LocationService();
+  final AddressService _addressService = AddressService();
 
   String? _error;
   String? _profileId;
   bool _isLoading = false;
 
+  // ============ NEW: GLOBAL ACTIVE USER PROFILE ============
+  UserProfileModel? _activeUserProfile;
+  AddressModel? _activeDefaultAddress;
+  bool _isLoadingActiveProfile = false;
+
+  // Getters for active profile
+  UserProfileModel? get activeUserProfile => _activeUserProfile;
+  AddressModel? get activeDefaultAddress => _activeDefaultAddress;
+  bool get isLoadingActiveProfile => _isLoadingActiveProfile;
+  bool get hasActiveProfile => _activeUserProfile != null;
+
   ProfileModel get profile => _profile;
   String? get error => _error;
   String? get profileId => _profileId;
   bool get isLoading => _isLoading;
+
+  // ============ NEW: LOAD ACTIVE USER PROFILE ============
+  /// Load the active user profile globally (call this once at app start)
+  Future<void> loadActiveUserProfile() async {
+    _isLoadingActiveProfile = true;
+    notifyListeners();
+
+    try {
+      final results = await Future.wait([
+        _profileService.getAllUserProfiles(),
+        _addressService.getAllAddresses(),
+      ]);
+
+      final profiles = results[0] as List<UserProfileModel>?;
+      final addresses = results[1] as List<AddressModel>?;
+
+      if (profiles != null && profiles.isNotEmpty) {
+        _activeUserProfile = profiles.first;
+      }
+
+      if (addresses != null && addresses.isNotEmpty) {
+        _activeDefaultAddress = addresses.firstWhere(
+              (addr) => addr.isDefault == true,
+          orElse: () => addresses.first,
+        );
+      }
+
+      _isLoadingActiveProfile = false;
+      debugPrint('✅ Active User Profile Loaded: ${_activeUserProfile?.profileId}');
+      debugPrint('✅ Default Address: ${_activeDefaultAddress?.addressType}');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error loading active profile: $e');
+      _isLoadingActiveProfile = false;
+      notifyListeners();
+    }
+  }
+
+  /// Update the active user profile
+  void updateActiveUserProfile(UserProfileModel profile) {
+    _activeUserProfile = profile;
+    notifyListeners();
+  }
+
+  /// Update the active default address
+  void updateActiveDefaultAddress(AddressModel address) {
+    _activeDefaultAddress = address;
+    notifyListeners();
+  }
+
+  /// Get active user data as JSON for API calls
+  Map<String, dynamic> getActiveUserJson() {
+    return {
+      'profileId': _activeUserProfile?.profileId,
+      'profileName': _activeUserProfile?.profileName,
+      'mobileNumber': _activeUserProfile?.mobileNumber,
+      // 'email': _activeUserProfile?.email,
+      'gender': _activeUserProfile?.gender,
+      'imageUrl': _activeUserProfile?.imageUrl,
+      // 'addressId': _activeDefaultAddress?.addressId,
+      'addressType': _activeDefaultAddress?.addressType,
+      // 'fullAddress': _activeDefaultAddress?.fullAddress,
+      'pincode': _activeDefaultAddress?.pincode,
+      'city': _activeDefaultAddress?.city,
+      'state': _activeDefaultAddress?.state,
+      // 'latitude': _activeDefaultAddress?.latitude,
+      // 'longitude': _activeDefaultAddress?.longitude,
+    };
+  }
+
+  /// Clear active user data (useful for logout)
+  void clearActiveUserProfile() {
+    _activeUserProfile = null;
+    _activeDefaultAddress = null;
+    notifyListeners();
+  }
+  // ============ END OF NEW SECTION ============
 
   // Update name
   void updateName(String name) {
@@ -281,6 +372,9 @@ class ProfileProvider extends ChangeNotifier {
           _profile.profileImagePath = uploadedImageUrl;
         }
 
+        // ============ NEW: Reload active profile after creation ============
+        await loadActiveUserProfile();
+
         notifyListeners();
         return true;
       }
@@ -326,6 +420,10 @@ class ProfileProvider extends ChangeNotifier {
 
       if (result != null) {
         debugPrint('✅ Profile updated successfully');
+
+        // ============ NEW: Reload active profile after update ============
+        await loadActiveUserProfile();
+
         notifyListeners();
         return true;
       }

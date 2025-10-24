@@ -48,6 +48,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    // ⭐ ADD THIS: Reload global profile when home screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<ProfileProvider>(context, listen: false).loadActiveUserProfile();
+    });
     _loadAllData();
   }
 

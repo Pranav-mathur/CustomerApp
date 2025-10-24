@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/address_model.dart';
 import '../models/updated_booking_models.dart';
 import '../models/booking_request_model.dart';
@@ -24,7 +25,7 @@ class BookAppointmentScreenV2 extends StatefulWidget {
   State<BookAppointmentScreenV2> createState() => _BookAppointmentScreenV2State();
 }
 
-class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
+class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with WidgetsBindingObserver {
   late BookingDataV2 bookingData;
   final AddressService _addressService = AddressService();
   final ProfileService _profileService = ProfileService();
@@ -36,6 +37,8 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
   bool isLoadingAddresses = true;
   String? addressError;
   bool isProcessingPayment = false;
+  bool isWaitingForPaymentReturn = false;
+  String? pendingBookingId;
 
   // Fabric upload states
   List<String> _fabricReferenceImages = [];
@@ -48,12 +51,118 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
     super.initState();
     bookingData = widget.bookingData;
     _loadAddresses();
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _fabricNotesController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // When app comes back to foreground after payment
+    if (state == AppLifecycleState.resumed && isWaitingForPaymentReturn) {
+      _handlePaymentReturn();
+    }
+  }
+
+  Future<void> _handlePaymentReturn() async {
+    if (!mounted) return;
+
+    setState(() {
+      isWaitingForPaymentReturn = false;
+    });
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false,
+        child: Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.red.shade400),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Processing Payment',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please wait while we confirm your payment...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Wait for 7 seconds
+    await Future.delayed(const Duration(seconds: 7));
+
+    if (!mounted) return;
+
+    // Close loading dialog
+    Navigator.of(context).pop();
+
+    // Navigate to home screen (pop all previous screens)
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _launchPaymentUrl(String url) async {
+    try {
+      final Uri paymentUri = Uri.parse(url);
+
+      if (await canLaunchUrl(paymentUri)) {
+        setState(() {
+          isWaitingForPaymentReturn = true;
+        });
+
+        await launchUrl(
+          paymentUri,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        throw Exception('Could not launch payment URL');
+      }
+    } catch (e) {
+      setState(() {
+        isWaitingForPaymentReturn = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open payment link: ${e.toString()}'),
+            backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   Future<Map<String, dynamic>?> _createBookingAPI(Map<String, dynamic> bookingData) async {
@@ -65,6 +174,8 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
       if (token == null) {
         throw Exception('Authentication token not found. Please login again.');
       }
+
+      print(token);
 
       final url = Uri.parse(apiUrl);
 
@@ -861,128 +972,128 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-      Row(
-      children: [
-      Container(
-      width: 70,
-        height: 70,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          image: DecorationImage(
-            image: NetworkImage(category.image),
-            fit: BoxFit.cover,
-          ),
-        ),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              category.serviceName,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${category.subCategoryName} · ₹${category.price}',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ),
-      Container(
-        decoration: BoxDecoration(
-          color: Colors.red.shade400,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.remove, size: 18, color: Colors.white),
-              onPressed: () => _updateCategoryQuantity(category.subCategoryId, -1),
-              padding: const EdgeInsets.all(4),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            ),
-            Container(
-              constraints: const BoxConstraints(minWidth: 24),
-              child: Text(
-                '${category.quantity}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+          Row(
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: NetworkImage(category.image),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.add, size: 18, color: Colors.white),
-              onPressed: () => _updateCategoryQuantity(category.subCategoryId, 1),
-              padding: const EdgeInsets.all(4),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            ),
-          ],
-        ),
-      ),
-      ],
-    ),
-    const SizedBox(height: 12),
-    Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () => _showTagDialog(category),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.grey.shade300),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-            ),
-            child: Text(
-              category.tag ?? 'Tag',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade700,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      category.serviceName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${category.subCategoryName} · ₹${category.price}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.red.shade400,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove, size: 18, color: Colors.white),
+                      onPressed: () => _updateCategoryQuantity(category.subCategoryId, -1),
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 24),
+                      child: Text(
+                        '${category.quantity}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                      onPressed: () => _updateCategoryQuantity(category.subCategoryId, 1),
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: OutlinedButton(
-        onPressed: () => _showReferenceDialog(category),
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Colors.grey.shade300),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              category.reference ?? 'Reference',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade700,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _showTagDialog(category),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.grey.shade300),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: Text(
+                    category.tag ?? 'Tag',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.info_outline,
-              size: 16,
-              color: Colors.grey.shade600,
-            ),
-          ],
-        ),
-      ),
-    ),
-      ],
-    ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _showReferenceDialog(category),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.grey.shade300),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        category.reference ?? 'Reference',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Colors.grey.shade600,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1110,7 +1221,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        selectedAddress?.label ?? 'Select Location',
+                        selectedAddress?.addressType ?? 'Select Location',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1578,7 +1689,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
               style: TextStyle(color: Colors.grey.shade700),
             ),
             Text(
-              'Location: ${bookingData.selectedAddress!.label}',
+              'Location: ${bookingData.selectedAddress!.addressType}',
               style: TextStyle(color: Colors.grey.shade700),
             ),
           ],
@@ -1615,7 +1726,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
     });
 
     try {
-      final bookingRequest = bookingData.toBookingRequest();
+      final bookingRequest = bookingData.toBookingRequest(context);
       final requestJson = bookingRequest.toJson();
 
       // Add fabric details at the root level (same level as profileId, etc.)
@@ -1644,13 +1755,19 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
           _fabricNotesController.clear();
         });
 
-        _showSuccessDialog(
-          bookingId: response['bookingId'] ?? '',
-          totalPrice: response['totalPrice']?.toString() ?? '0',
-          itemsCount: response['itemsCount']?.toString() ?? '0',
-          paymentLink: response['paymentLink'],
-          message: response['message'] ?? 'Booking created successfully',
-        );
+        // Extract payment link and booking ID
+        final String? paymentLink = response['paymentLink'];
+        final String? bookingId = response['bookingId'];
+
+        if (paymentLink != null && paymentLink.isNotEmpty) {
+          // Store booking ID for reference
+          pendingBookingId = bookingId;
+
+          // Launch payment URL immediately
+          await _launchPaymentUrl(paymentLink);
+        } else {
+          throw Exception('Payment link not found in response');
+        }
       } else {
         throw Exception('Failed to create booking');
       }
@@ -1676,154 +1793,4 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> {
     }
   }
 
-  void _showSuccessDialog({
-    required String bookingId,
-    required String totalPrice,
-    required String itemsCount,
-    required String message,
-    String? paymentLink,
-  }) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.check_circle,
-              color: Colors.green.shade600,
-              size: 64,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Booking Created!',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Booking ID:',
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        bookingId,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Total Amount:',
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        '₹$totalPrice',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Items:',
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        itemsCount,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (paymentLink != null) ...[
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade600,
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text(
-                'Pay Now',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          OutlinedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-            ),
-            child: const Text('Go to Home'),
-          ),
-        ],
-      ),
-    );
-  }
 }

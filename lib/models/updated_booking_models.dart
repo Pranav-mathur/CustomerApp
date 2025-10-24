@@ -3,6 +3,9 @@
 import 'address_model.dart';
 import 'booking_request_model.dart';
 import 'address_models.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/profile_provider.dart';
 
 class BookingDataV2 {
   final String tailorId;
@@ -52,13 +55,18 @@ class BookingDataV2 {
   }
 
   // Convert to API format
-  BookingRequest toBookingRequest() {
+  // ⭐ UPDATED: Now requires BuildContext to get global profile ID
+  BookingRequest toBookingRequest(BuildContext context) {
     if (selectedAddress == null) {
       throw Exception('Address must be selected before creating booking request');
     }
 
+    // ⭐ Get global profile ID from ProfileProvider
+    final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+    final globalProfileId = profileProvider.activeUserProfile?.profileId ?? "";
+
     return BookingRequest(
-      profileId: selectedAddress?.id ?? "",
+      profileId: globalProfileId, // ⭐ CHANGED: Using global profile ID instead of address ID
       tailorId: tailorId,
       requestedDateTime: requestedDateTime.toIso8601String(),
       categories: categories.map((cat) => BookingCategory(
