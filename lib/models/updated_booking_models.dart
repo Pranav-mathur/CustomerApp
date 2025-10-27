@@ -107,11 +107,21 @@ class PaymentBreakup {
     double taxRate = 0.05,
     int discount = 0,
   }) {
-    final tax = (totalTailoring * taxRate).round();
-    final totalAmount = totalTailoring + pickupFee + tax - discount;
+    // Remove discount from total first
+    final amountAfterDiscount = totalTailoring - discount;
+
+    // The tailoring cost before tax and pickup fee
+    final tailoringBase =
+    ((amountAfterDiscount - pickupFee) / (1 + taxRate)).round();
+
+    // Calculate actual tax portion
+    final tax = (tailoringBase * taxRate).round();
+
+    // Sanity check: recompute total (should roughly match totalTailoring)
+    final totalAmount = tailoringBase + pickupFee + tax - discount;
 
     return PaymentBreakup(
-      totalTailoring: totalTailoring,
+      totalTailoring: tailoringBase,
       pickupFee: pickupFee,
       tax: tax,
       discount: discount,
