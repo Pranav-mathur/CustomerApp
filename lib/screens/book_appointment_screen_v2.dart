@@ -12,6 +12,7 @@ import '../models/booking_request_model.dart';
 import '../services/address_service.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import 'order_details_screen.dart';
 
 class BookAppointmentScreenV2 extends StatefulWidget {
   final BookingDataV2 bookingData;
@@ -128,8 +129,20 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
     // Close loading dialog
     Navigator.of(context).pop();
 
-    // Navigate to home screen (pop all previous screens)
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Navigate to OrderDetailsScreen with bookingId
+    if (pendingBookingId != null && pendingBookingId!.isNotEmpty) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => OrderDetailsScreen(
+            bookingId: pendingBookingId,
+            showContinueButton: true,
+          ),
+        ),
+      );
+    } else {
+      // Fallback: Navigate to home if no bookingId
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   Future<void> _launchPaymentUrl(String url) async {

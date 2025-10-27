@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
 import 'dart:io';
 import '../providers/profile_provider.dart';
 import '../models/home_screen_models.dart';
@@ -24,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   final HomeService _homeService = HomeService();
   final ProfileService _profileService = ProfileService();
   final AddressService _addressService = AddressService();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   TabController? _tabController;
   String _selectedGender = 'Men';
@@ -45,6 +48,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   AddressModel? _defaultAddress;
   bool _isLoadingUserData = true;
 
+  // Search related
+  bool _isSearchActive = false;
+  List<String> _recentSearches = [];
+  List<TailorModel> _searchResults = [];
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +61,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       Provider.of<ProfileProvider>(context, listen: false).loadActiveUserProfile();
     });
     _loadAllData();
+    _loadRecentSearches();
+    _searchController.addListener(_onSearchChanged);
   }
 
   void _onTabChanged() {
@@ -74,6 +84,86 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _loadUserData(),
       _loadHomeData(),
     ]);
+  }
+
+  void _onSearchChanged() {
+    if (_searchController.text.isEmpty) {
+      setState(() {
+        _searchResults.clear();
+      });
+    } else {
+      _performSearch(_searchController.text);
+    }
+  }
+
+  void _performSearch(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults.clear();
+      });
+      return;
+    }
+    final lowerQuery = query.toLowerCase();
+
+    // Combine featured and all tailors, remove duplicates
+    final allTailorsList = [...featuredTailors, ...allTailors];
+    final uniqueTailors = <String, TailorModel>{};
+    for (var tailor in allTailorsList) {
+      uniqueTailors[tailor.id] = tailor;
+    }
+
+    // Filter by name
+    final results = uniqueTailors.values.where((tailor) {
+      return tailor.name.toLowerCase().contains(lowerQuery);
+    }).toList();
+
+    setState(() {
+      _searchResults = results;
+    });
+
+    debugPrint('🔍 Search query: "$query" - Found ${results.length} results');
+  }
+
+  Future<void> _loadRecentSearches() async {
+    try {
+      final searchesJson = await _secureStorage.read(key: 'recent_searches');
+      if (searchesJson != null) {
+        final List<dynamic> decoded = jsonDecode(searchesJson);
+        setState(() {
+          _recentSearches = decoded.cast<String>();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading recent searches: $e');
+    }
+  }
+
+  Future<void> _saveRecentSearch(String query) async {
+    if (query.trim().isEmpty) return;
+    setState(() {
+      _recentSearches.remove(query);
+      _recentSearches.insert(0, query);
+      if (_recentSearches.length > 5) {
+        _recentSearches = _recentSearches.sublist(0, 5);
+      }
+    });
+    try {
+      final encoded = jsonEncode(_recentSearches);
+      await _secureStorage.write(key: 'recent_searches', value: encoded);
+    } catch (e) {
+      debugPrint('Error saving recent search: $e');
+    }
+  }
+
+  Future<void> _clearRecentSearches() async {
+    setState(() {
+      _recentSearches.clear();
+    });
+    try {
+      await _secureStorage.delete(key: 'recent_searches');
+    } catch (e) {
+      debugPrint('Error clearing recent searches: $e');
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -372,6 +462,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     if (_tabController != null) {
       _tabController!.removeListener(_onTabChanged);
@@ -382,6 +473,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    if (_isSearchActive) {
+      return _buildSearchView();
+    }
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.white,
@@ -533,18 +628,240 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'Search tailor, category',
-          hintStyle: TextStyle(color: Colors.grey.shade400),
-          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-          filled: true,
-          fillColor: Colors.grey.shade100,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _isSearchActive = true;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: Colors.grey.shade400),
+              const SizedBox(width: 12),
+              Text(
+                'Search tailor, category',
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchView() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _isSearchActive = false;
+                        _searchController.clear();
+                        _searchResults.clear();
+                      });
+                    },
+                    child: const Icon(Icons.arrow_back, color: Colors.black87),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Search tailor, category',
+                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      onChanged: (value) {
+                        // This triggers _onSearchChanged via the listener
+                        // Force rebuild to show/hide clear button
+                        setState(() {});
+                      },
+                      onSubmitted: (value) {
+                        if (value.trim().isNotEmpty) {
+                          _saveRecentSearch(value.trim());
+                        }
+                      },
+                    ),
+                  ),
+                  if (_searchController.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchResults.clear();
+                        });
+                      },
+                      child: Icon(Icons.close, color: Colors.grey.shade600, size: 20),
+                    ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      if (_searchController.text.trim().isNotEmpty) {
+                        _saveRecentSearch(_searchController.text.trim());
+                      }
+                    },
+                    child: Icon(Icons.search, color: Colors.grey.shade600, size: 22),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _searchController.text.isEmpty
+                  ? _buildRecentSearchesContent()
+                  : _buildSearchResults(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentSearchesContent() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_recentSearches.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(Icons.history, size: 20, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Recent Searched',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _recentSearches.map((search) {
+                  return GestureDetector(
+                    onTap: () {
+                      _searchController.text = search;
+                      _performSearch(search);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        search,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(Icons.star, size: 16, color: Colors.grey.shade700),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Featured Tailors',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 280,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: featuredTailors.length,
+              itemBuilder: (context, index) => _buildTailorCard(featuredTailors[index], isHorizontal: true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_searchResults.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              'No tailors found',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try searching with a different name',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _searchResults.length,
+      itemBuilder: (context, index) {
+        return _buildTailorCard(_searchResults[index], isHorizontal: false);
+      },
     );
   }
 
@@ -1101,17 +1418,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             ],
                           ),
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/profile-details');
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: Colors.brown.shade50, borderRadius: BorderRadius.circular(8)),
-                            child: Icon(Icons.edit, size: 20, color: Colors.brown.shade700),
-                          ),
-                        ),
+                        // GestureDetector(
+                        //   onTap: () {
+                        //     Navigator.pop(context);
+                        //     Navigator.pushNamed(context, '/profile-details');
+                        //   },
+                        //   child: Container(
+                        //     padding: const EdgeInsets.all(8),
+                        //     decoration: BoxDecoration(color: Colors.brown.shade50, borderRadius: BorderRadius.circular(8)),
+                        //     child: Icon(Icons.edit, size: 20, color: Colors.brown.shade700),
+                        //   ),
+                        // ),
                       ],
                     ),
                   ],
@@ -1141,11 +1458,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         Navigator.pushNamed(context, '/address-list');
                       },
                     ),
-                    _buildDrawerItem(
-                      icon: Icons.payment_outlined,
-                      title: 'Payments',
-                      onTap: () => Navigator.pop(context),
-                    ),
+                    // _buildDrawerItem(
+                    //   icon: Icons.payment_outlined,
+                    //   title: 'Payments',
+                    //   onTap: () => Navigator.pop(context),
+                    // ),
                     _buildDrawerItem(
                       icon: Icons.person_outline,
                       title: 'My Profiles',
@@ -1160,8 +1477,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
                       child: Text('Settings & Support', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
                     ),
-                    _buildDrawerItem(icon: Icons.headset_mic_outlined, title: 'Contact Us', onTap: () => Navigator.pop(context)),
-                    _buildDrawerItem(icon: Icons.share_outlined, title: 'Share App with Friends', onTap: () => Navigator.pop(context)),
+                    // _buildDrawerItem(icon: Icons.headset_mic_outlined, title: 'Contact Us', onTap: () => Navigator.pop(context)),
+                    // _buildDrawerItem(icon: Icons.share_outlined, title: 'Share App with Friends', onTap: () => Navigator.pop(context)),
                     _buildDrawerItem(
                       icon: Icons.logout_outlined,
                       title: 'Logout',
@@ -1211,9 +1528,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600))),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/login');
+            onPressed: () async {
+              await _clearRecentSearches();
+              if (mounted) {
+                Navigator.pop(context);
+                Navigator.pushReplacementNamed(context, '/login');
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             child: const Text('Logout'),

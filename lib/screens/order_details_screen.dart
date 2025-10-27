@@ -8,11 +8,15 @@ import '../models/order_details_model.dart';
 import '../services/auth_service.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
-  final OrderModel order;
+  final OrderModel? order; // Made optional
+  final String? bookingId; // New parameter for direct navigation
+  final bool showContinueButton; // New parameter to show Continue button
 
   const OrderDetailsScreen({
     Key? key,
-    required this.order,
+    this.order,
+    this.bookingId,
+    this.showContinueButton = false,
   }) : super(key: key);
 
   @override
@@ -42,8 +46,15 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       final AuthService _authService = AuthService();// Get this from your auth service
       final token = await _authService.getToken();
 
+      // Use bookingId if provided, otherwise use order.id
+      final String orderId = widget.bookingId ?? widget.order?.id ?? '';
+
+      if (orderId.isEmpty) {
+        throw Exception('No order ID provided');
+      }
+
       final response = await http.get(
-        Uri.parse('$apiBaseUrl/${widget.order.id}'),
+        Uri.parse('$apiBaseUrl/$orderId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -100,7 +111,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
     // Convert address
     PickupAddress pickupAddress = PickupAddress(
-      name: apiData['address']['label'] ?? 'Address',
+      name: apiData['address']['address_type'] ?? 'Address',
       address: _formatAddress(apiData['address']),
     );
 
@@ -189,10 +200,29 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
+          leading: widget.showContinueButton
+              ? const SizedBox.shrink() // Hide back button
+              : IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black87),
             onPressed: () => Navigator.pop(context),
           ),
+          automaticallyImplyLeading: false,
+          actions: widget.showContinueButton
+              ? [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              child: const Text(
+                'Continue',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ]
+              : null,
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -204,10 +234,29 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
+          leading: widget.showContinueButton
+              ? const SizedBox.shrink() // Hide back button
+              : IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black87),
             onPressed: () => Navigator.pop(context),
           ),
+          automaticallyImplyLeading: false,
+          actions: widget.showContinueButton
+              ? [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              child: const Text(
+                'Continue',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ]
+              : null,
         ),
         body: Center(
           child: Column(
@@ -235,10 +284,29 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
+          leading: widget.showContinueButton
+              ? const SizedBox.shrink() // Hide back button
+              : IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black87),
             onPressed: () => Navigator.pop(context),
           ),
+          automaticallyImplyLeading: false,
+          actions: widget.showContinueButton
+              ? [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              child: const Text(
+                'Continue',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ]
+              : null,
         ),
         body: const Center(child: Text('No order details available')),
       );
@@ -249,12 +317,33 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Back Button
-            Align(
-              alignment: Alignment.topLeft,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 28),
-                onPressed: () => Navigator.pop(context),
+            // Back Button and Continue Button Row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Show back button only when NOT from payment flow
+                  widget.showContinueButton
+                      ? const SizedBox(width: 48) // Empty space to balance the row
+                      : IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  if (widget.showContinueButton)
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      },
+                      child: const Text(
+                        'Continue',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
 
@@ -324,15 +413,15 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   ),
                                 ],
                               ),
-                              if (orderDetails!.canEditPickupTime)
-                                Text(
-                                  'Edit',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.brown.shade700,
-                                  ),
-                                ),
+                              // if (orderDetails!.canEditPickupTime)
+                              //   Text(
+                              //     'Edit',
+                              //     style: TextStyle(
+                              //       fontSize: 15,
+                              //       fontWeight: FontWeight.w600,
+                              //       color: Colors.brown.shade700,
+                              //     ),
+                              //   ),
                             ],
                           ),
                         ],
@@ -402,11 +491,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                           color: Colors.grey.shade700,
                                         ),
                                       ),
-                                      Icon(
-                                        Icons.keyboard_arrow_down,
-                                        size: 18,
-                                        color: Colors.grey.shade700,
-                                      ),
+                                      // Icon(
+                                      //   Icons.keyboard_arrow_down,
+                                      //   size: 18,
+                                      //   color: Colors.grey.shade700,
+                                      // ),
                                     ],
                                   ),
                                 ],
@@ -478,11 +567,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                       ),
                                     ],
                                   ),
-                                ),
-                                Icon(
-                                  Icons.chevron_right,
-                                  size: 24,
-                                  color: Colors.grey.shade400,
                                 ),
                               ],
                             ),
@@ -671,51 +755,51 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
                     const SizedBox(height: 12),
 
-                    // Need Support
-                    _buildCompactCard(
-                      child: InkWell(
-                        onTap: () {},
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.headset_mic,
-                              size: 24,
-                              color: Colors.black87,
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Need Support?',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                const Text(
-                                  'Contact Us',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const Spacer(),
-                            Icon(
-                              Icons.chevron_right,
-                              size: 24,
-                              color: Colors.grey.shade400,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
+                    // // Need Support
+                    // _buildCompactCard(
+                    //   child: InkWell(
+                    //     onTap: () {},
+                    //     child: Row(
+                    //       children: [
+                    //         Icon(
+                    //           Icons.headset_mic,
+                    //           size: 24,
+                    //           color: Colors.black87,
+                    //         ),
+                    //         const SizedBox(width: 12),
+                    //         Column(
+                    //           crossAxisAlignment: CrossAxisAlignment.start,
+                    //           children: [
+                    //             Text(
+                    //               'Need Support?',
+                    //               style: TextStyle(
+                    //                 fontSize: 13,
+                    //                 color: Colors.grey.shade600,
+                    //               ),
+                    //             ),
+                    //             const SizedBox(height: 2),
+                    //             const Text(
+                    //               'Contact Us',
+                    //               style: TextStyle(
+                    //                 fontSize: 16,
+                    //                 fontWeight: FontWeight.bold,
+                    //                 color: Colors.black87,
+                    //               ),
+                    //             ),
+                    //           ],
+                    //         ),
+                    //         const Spacer(),
+                    //         Icon(
+                    //           Icons.chevron_right,
+                    //           size: 24,
+                    //           color: Colors.grey.shade400,
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
+                    //
+                    // const SizedBox(height: 20),
                   ],
                 ),
               ),
