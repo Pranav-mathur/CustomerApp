@@ -11,6 +11,7 @@ class AuthService {
   static const String _tokenKey = 'token';
   static const String _phoneNumberKey = 'phone_number';
   static const String _userIdKey = 'userId';
+  static const String _isNewUserKey = 'is_new_user';
 
   // Get token
   Future<String?> getToken() async {
@@ -86,6 +87,27 @@ class AuthService {
     }
   }
 
+  // Get is_new_user status
+  Future<bool?> getIsNewUser() async {
+    try {
+      final value = await _secureStorage.read(key: _isNewUserKey);
+      if (value == null) return null;
+      return value.toLowerCase() == 'true';
+    } catch (e) {
+      debugPrint('Error getting is_new_user: $e');
+      return null;
+    }
+  }
+
+  // Save is_new_user status
+  Future<void> saveIsNewUser(bool isNewUser) async {
+    try {
+      await _secureStorage.write(key: _isNewUserKey, value: isNewUser.toString());
+    } catch (e) {
+      debugPrint('Error saving is_new_user: $e');
+    }
+  }
+
   // Send OTP to mobile number
   Future<Map<String, dynamic>> sendOtp(String mobileNumber) async {
     final url = Uri.parse("$baseUrl/auth/login/send-otp");
@@ -150,6 +172,15 @@ class AuthService {
         if (result['userId'] != null) {
           await saveUserId(result['userId']);
         }
+
+        // Save is_new_user status if present in response
+        if (result.containsKey('is_new_user')) {
+          final isNewUser = result['is_new_user'] == true || result['is_new_user'] == 'true';
+          await saveIsNewUser(isNewUser);
+        } else if (result.containsKey('isNewUser')) {
+          final isNewUser = result['isNewUser'] == true || result['isNewUser'] == 'true';
+          await saveIsNewUser(isNewUser);
+        }
       }
 
       return result;
@@ -168,6 +199,7 @@ class AuthService {
     // Mock response - save to secure storage
     // await saveToken("NEW-TOKEN");
     // await savePhoneNumber(mobileNumber);
+    // await saveIsNewUser(false);
     //
     // return {
     //   "token": "NEW-TOKEN",

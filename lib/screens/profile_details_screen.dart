@@ -35,8 +35,26 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   UserProfileModel? _existingProfile;
   bool _hasChanges = false;
 
-  // Store controllers for measurement types and values separately
-  final Map<int, TextEditingController> _measurementTypeControllers = {};
+  // Available measurement types
+  final List<String> _allMeasurementTypes = [
+    'chest',
+    'waist',
+    'hips',
+    'shoulder',
+    'sleeve',
+    'neck',
+    'length',
+    'bust',
+    'inseam',
+    'outseam',
+    'thigh',
+    'calf',
+    'ankle',
+    'wrist',
+    'other'
+  ];
+
+  // Store controllers for measurement values
   final Map<int, TextEditingController> _measurementValueControllers = {};
 
   // Store original values for comparison (using ProfileMeasurement)
@@ -169,14 +187,26 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     }
   }
 
+  // Get available measurement types (excluding already selected ones)
+  List<String> _getAvailableMeasurementTypes(int currentIndex) {
+    final provider = Provider.of<ProfileProvider>(context, listen: false);
+    final selectedTypes = provider.profile.measurements
+        .asMap()
+        .entries
+        .where((entry) => entry.key != currentIndex && entry.value.name.isNotEmpty)
+        .map((entry) => entry.value.name.toLowerCase())
+        .toSet();
+
+    return _allMeasurementTypes
+        .where((type) => !selectedTypes.contains(type.toLowerCase()))
+        .toList();
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
 
-    for (var controller in _measurementTypeControllers.values) {
-      controller.dispose();
-    }
     for (var controller in _measurementValueControllers.values) {
       controller.dispose();
     }
@@ -275,7 +305,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
     final index = provider.profile.measurements.length - 1;
 
-    _measurementTypeControllers[index] = TextEditingController();
     _measurementValueControllers[index] = TextEditingController();
 
     if (_isEditMode) {
@@ -289,9 +318,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     if (index >= 0 && index < provider.profile.measurements.length) {
       provider.removeMeasurement(index);
 
-      _measurementTypeControllers[index]?.dispose();
       _measurementValueControllers[index]?.dispose();
-      _measurementTypeControllers.remove(index);
       _measurementValueControllers.remove(index);
 
       if (_isEditMode) {
@@ -361,21 +388,15 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
     for (int i = 0; i < provider.profile.measurements.length; i++) {
       final measurement = provider.profile.measurements[i];
-      final typeController = _measurementTypeControllers[i];
       final valueController = _measurementValueControllers[i];
 
-      if (typeController == null || typeController.text.trim().isEmpty) {
-        _showErrorSnackBar('Please fill all measurement types or remove empty measurements');
+      if (measurement.name.trim().isEmpty) {
+        _showErrorSnackBar('Please select all measurement types or remove empty measurements');
         return false;
       }
 
       if (valueController == null || valueController.text.trim().isEmpty) {
         _showErrorSnackBar('Please fill all measurement values or remove incomplete measurements');
-        return false;
-      }
-
-      if (measurement.name.trim().isEmpty) {
-        _showErrorSnackBar('Please fill all measurement types or remove empty measurements');
         return false;
       }
 
@@ -940,12 +961,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                                       final index = entry.key;
                                       final measurement = entry.value;
 
-                                      if (!_measurementTypeControllers.containsKey(index)) {
-                                        _measurementTypeControllers[index] = TextEditingController(
-                                          text: measurement.name,
-                                        );
-                                      }
-
                                       if (!_measurementValueControllers.containsKey(index)) {
                                         _measurementValueControllers[index] = TextEditingController(
                                           text: measurement.value,
@@ -1245,6 +1260,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   }
 
   Widget _buildMeasurementCard(int index, MeasurementModel measurement) {
+    final availableTypes = _getAvailableMeasurementTypes(index);
+    final currentType = measurement.name.isEmpty ? null : measurement.name;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
@@ -1261,12 +1279,12 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           children: [
             Expanded(
               flex: 2,
-              child: TextFormField(
-                controller: _measurementTypeControllers[index],
-                enabled: !_isCreatingProfile,
+              child: DropdownButtonFormField<String>(
+                value: currentType,
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: 'Type',
-                  hintText: 'e.g., Chest',
+                  hintText: 'Select type',
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.white,
@@ -1282,22 +1300,54 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Colors.red.shade300, width: 2),
                   ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.red, width: 1),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                  ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 12,
                   ),
                 ),
+                items: [
+                  // Add current selection if it exists and is not in available list
+                  if (currentType != null && !availableTypes.contains(currentType))
+                    DropdownMenuItem<String>(
+                      value: currentType,
+                      child: Text(
+                        currentType[0].toUpperCase() + currentType.substring(1),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  // Add all available types
+                  ...availableTypes.map((type) => DropdownMenuItem<String>(
+                    value: type,
+                    child: Text(
+                      type[0].toUpperCase() + type.substring(1),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  )),
+                ],
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Required';
                   }
                   return null;
                 },
-                onChanged: (value) {
-                  Provider.of<ProfileProvider>(context, listen: false)
-                      .updateMeasurementName(index, value);
-                  if (_isEditMode) {
-                    _checkForChanges();
+                onChanged: _isCreatingProfile
+                    ? null
+                    : (value) {
+                  if (value != null) {
+                    Provider.of<ProfileProvider>(context, listen: false)
+                        .updateMeasurementName(index, value);
+                    if (_isEditMode) {
+                      _checkForChanges();
+                    }
+                    setState(() {}); // Rebuild to update available options
                   }
                 },
               ),

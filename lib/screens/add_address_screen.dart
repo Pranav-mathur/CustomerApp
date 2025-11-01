@@ -345,10 +345,10 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-        ),
+        // leading: IconButton(
+        //   icon: const Icon(Icons.arrow_back, color: Colors.black87),
+        //   onPressed: _isLoading ? null : () => Navigator.pop(context),
+        // ),
         title: Text(
           _isEditMode
               ? 'Edit Address'
@@ -362,19 +362,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         backgroundColor: Colors.grey.shade50,
         elevation: 0,
         actions: [
-          // Only show skip button in onboarding flow (not in edit or add from list)
-          if (!_isFromAddressList && !_isEditMode)
-            TextButton(
-              onPressed: _isLoading ? null : _skipAddress,
-              child: Text(
-                'Skip',
-                style: TextStyle(
-                  color: _isLoading ? Colors.grey : Colors.red.shade400,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+          // Only show skip button in onboarding flow (not in edit or add from list
         ],
       ),
       body: SafeArea(

@@ -46,11 +46,27 @@ class TailorDetail {
     final reviewCount = ratingsData?['review_count'] ?? 0;
 
     // Parse gallery from portfolioImages
-    final portfolioImages = tailorData['portfolioImages'] as List<dynamic>? ?? [];
-    final gallery = portfolioImages.map((url) => GalleryItem(
-      imageUrl: url.toString(),
-      caption: 'Portfolio Image',
-    )).toList();
+    // --- Collect gallery images from categories only ---
+    final catData = tailorData['categories'] as Map<String, dynamic>? ?? {};
+    List<GalleryItem> gallery = [];
+
+    catData.forEach((gender, catList) {
+      if (catList is List) {
+        for (var category in catList) {
+          final subCats = (category['sub_categories'] ?? []) as List;
+          for (var subCat in subCats) {
+            final displayImages = subCat['display_images'] as List<dynamic>? ?? [];
+            for (var img in displayImages) {
+              gallery.add(GalleryItem(
+                imageUrl: img.toString(),
+                caption: subCat['sub_category_name'] ?? '',
+              ));
+            }
+          }
+        }
+      }
+    });
+
 
     // Parse reviews
     final reviewsList = ratingsData?['reviews'] as List<dynamic>? ?? [];

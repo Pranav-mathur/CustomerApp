@@ -24,10 +24,10 @@ class HomeService {
           // 'Authorization': 'Bearer $token',
         },
       );
+      debugPrint("✅ URL: ${Uri.parse('$baseUrl/homepage')}");
 
-      debugPrint("✅ Send OTP API Response: ${response.statusCode}");
-      debugPrint("✅ Send OTP API Response Body: ${response.body}");
-      debugPrint("✅ Send OTP API Response Body: ${response}");
+      debugPrint("✅ Send getHomeData Response code: ${response.statusCode}");
+      debugPrint("✅ Send getHomeData Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

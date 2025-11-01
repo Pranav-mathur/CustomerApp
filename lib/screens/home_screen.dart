@@ -540,8 +540,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
             const SizedBox(height: 16),
             Text('Oops! Something went wrong', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-            const SizedBox(height: 8),
-            Text(_errorMessage ?? 'Unknown error', style: TextStyle(fontSize: 14, color: Colors.grey.shade600), textAlign: TextAlign.center),
+            // const SizedBox(height: 8),
+            // Text(_errorMessage ?? 'Unknown error', style: TextStyle(fontSize: 14, color: Colors.grey.shade600), textAlign: TextAlign.center),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _loadAllData,
@@ -570,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/profile-details'),
+            // onTap: () => Navigator.pushNamed(context, '/profile-details'),
             child: Container(
               width: 50,
               height: 50,
@@ -603,9 +603,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 children: [
                   Row(
                     children: [
-                      Text(_defaultAddress?.addressType?.toUpperCase() ?? 'HOME', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      const SizedBox(width: 4),
-                      Icon(Icons.keyboard_arrow_down, size: 20, color: Colors.grey.shade600),
+                      Text(_defaultAddress?.addressType?.toUpperCase() ?? 'No Address', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      // const SizedBox(width: 4),
+                      // Icon(Icons.keyboard_arrow_down, size: 20, color: Colors.grey.shade600),
                     ],
                   ),
                   const SizedBox(height: 2),

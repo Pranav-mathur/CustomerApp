@@ -12,6 +12,7 @@ class TailorService {
   Future<TailorDetail> getTailorDetail(String tailorId) async {
     try {
       final url = Uri.parse('$baseUrl/tailor/details/$tailorId');
+      debugPrint("📎 url: ${url}");
 
       final response = await http.get(
         url,
