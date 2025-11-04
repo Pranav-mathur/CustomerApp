@@ -20,6 +20,7 @@ class CategoryModel {
   final String id;
   final String name;
   final String gender;
+  final String? image;
   final List<SubCategory> subCategories;
   final DateTime createdAt;
 
@@ -27,6 +28,7 @@ class CategoryModel {
     required this.id,
     required this.name,
     required this.gender,
+    this.image,
     required this.subCategories,
     required this.createdAt,
   });
@@ -36,6 +38,7 @@ class CategoryModel {
       id: json['_id'] ?? '',
       name: json['name'] ?? '',
       gender: json['gender'] ?? '',
+      image: json['image'],
       subCategories: (json['sub_categories'] as List?)
           ?.map((e) => SubCategory.fromJson(e))
           .toList() ??

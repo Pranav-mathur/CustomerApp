@@ -975,7 +975,45 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 border: isSelected ? Border.all(color: Colors.red.shade400, width: 3) : null,
                 boxShadow: isSelected ? [BoxShadow(color: Colors.red.shade400.withOpacity(0.3), blurRadius: 8, spreadRadius: 2)] : null,
               ),
-              child: Center(child: Icon(_getCategoryIcon(category.name), size: 32, color: Colors.white)),
+              child: ClipOval(
+                child: category.image != null && category.image!.isNotEmpty
+                    ? Image.network(
+                  category.image!,
+                  width: 70,
+                  height: 70,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback to icon if image fails to load
+                    return Center(
+                      child: Icon(
+                        _getCategoryIcon(category.name),
+                        size: 32,
+                        color: Colors.white,
+                      ),
+                    );
+                  },
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    );
+                  },
+                )
+                    : Center(
+                  child: Icon(
+                    _getCategoryIcon(category.name),
+                    size: 32,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
