@@ -298,61 +298,31 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     }
   }
 
-  void _skipAddress() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Skip Address?'),
-        content: const Text(
-          'You can add your address later from settings. Continue without saving address?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final provider = Provider.of<ProfileProvider>(context, listen: false);
-              provider.clearProfileData();
+  void _handleSkip() {
+    final provider = Provider.of<ProfileProvider>(context, listen: false);
+    provider.clearProfileData();
 
-              Navigator.pop(context);
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/home',
-                    (Route<dynamic> route) => false,
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade400,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Skip'),
-          ),
-        ],
-      ),
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/home',
+          (Route<dynamic> route) => false,
     );
+
+    debugPrint('⏭️ User skipped address');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        // leading: IconButton(
-        //   icon: const Icon(Icons.arrow_back, color: Colors.black87),
-        //   onPressed: _isLoading ? null : () => Navigator.pop(context),
-        // ),
+      appBar: (_isFromAddressList || _isEditMode)
+          ? AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+        ),
         title: Text(
-          _isEditMode
-              ? 'Edit Address'
-              : (_isFromAddressList ? 'Add New Address' : 'Add Address'),
+          _isEditMode ? 'Edit Address' : 'Add New Address',
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -361,10 +331,8 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         ),
         backgroundColor: Colors.grey.shade50,
         elevation: 0,
-        actions: [
-          // Only show skip button in onboarding flow (not in edit or add from list
-        ],
-      ),
+      )
+          : null,
       body: SafeArea(
         child: Stack(
           children: [
@@ -375,7 +343,58 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
+                    if (!_isFromAddressList && !_isEditMode) ...[
+                      const SizedBox(height: 8),
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const Center(
+                            child: Text(
+                              'Add Address',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            child: TextButton(
+                              onPressed: _isLoading ? null : _handleSkip,
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(50, 30),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                'Skip',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: _isLoading
+                                      ? Colors.grey
+                                      : Colors.red.shade400,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // Center(
+                      //   child: Text(
+                      //     'You can add your address later from settings',
+                      //     style: TextStyle(
+                      //       fontSize: 14,
+                      //       color: Colors.grey.shade600,
+                      //     ),
+                      //   ),
+                      // ),
+                      // const SizedBox(height: 20),
+                    ] else ...[
+                      const SizedBox(height: 20),
+                    ],
 
                     Container(
                       padding: const EdgeInsets.all(24),
@@ -542,7 +561,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _buildAddressTypeButton('Office'),
+                                child: _buildAddressTypeButton('Work'),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -625,7 +644,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 24),
 
                     // Save/Update Address Button
                     SizedBox(

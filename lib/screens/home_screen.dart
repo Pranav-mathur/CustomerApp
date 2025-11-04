@@ -260,9 +260,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
         List<TailorModel> tempAllTailors = [];
         try {
-          tempAllTailors = (data['allTailors'] as List)
+          final allTailorsFromApi = (data['allTailors'] as List)
               .map((json) => TailorModel.fromJson(json))
               .toList();
+
+          // Filter out sponsored tailors - keep only non-sponsored
+          tempAllTailors = allTailorsFromApi
+              .where((tailor) => tailor.isSponsored != true)
+              .toList();
+
+          print('=== TAILORS FILTERING ===');
+          print('Total tailors from API: ${allTailorsFromApi.length}');
+          print('Non-sponsored tailors (filtered): ${tempAllTailors.length}');
+          print('Sponsored tailors (removed): ${allTailorsFromApi.length - tempAllTailors.length}');
         } catch (e) {
           print('Error parsing all tailors: $e');
         }
@@ -1135,24 +1145,24 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ),
         const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildFilterChip('Filters', Icons.filter_list),
-                const SizedBox(width: 8),
-                _buildFilterChip('Sort By', Icons.sort),
-                const SizedBox(width: 8),
-                _buildFilterChip('within 5km', null),
-                const SizedBox(width: 8),
-                _buildFilterChip('Rating > 4', null),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
+        // Padding(
+        //   padding: const EdgeInsets.symmetric(horizontal: 16),
+        //   child: SingleChildScrollView(
+        //     scrollDirection: Axis.horizontal,
+        //     child: Row(
+        //       children: [
+        //         _buildFilterChip('Filters', Icons.filter_list),
+        //         const SizedBox(width: 8),
+        //         _buildFilterChip('Sort By', Icons.sort),
+        //         const SizedBox(width: 8),
+        //         _buildFilterChip('within 5km', null),
+        //         const SizedBox(width: 8),
+        //         _buildFilterChip('Rating > 4', null),
+        //       ],
+        //     ),
+        //   ),
+        // ),
+        // const SizedBox(height: 16),
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

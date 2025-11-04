@@ -570,6 +570,22 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     }
   }
 
+  void _handleSkip() {
+    final provider = Provider.of<ProfileProvider>(context, listen: false);
+
+    // Clear any partial data
+    provider.clearProfileData();
+
+    // Navigate to add-address screen with null profileId to indicate skip
+    Navigator.pushNamed(
+      context,
+      '/add-address',
+      arguments: null,
+    );
+
+    debugPrint('⏭️ User skipped profile details');
+  }
+
   String _getButtonText() {
     if (_isEditMode) {
       return 'Update Profile';
@@ -623,24 +639,56 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                   child: Column(
                     children: [
                       if (!_isFromProfilesList && !_isEditMode) ...[
-                        const SizedBox(height: 40),
-                        const Text(
-                          'Profile Details',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
                         const SizedBox(height: 8),
-                        Text(
-                          'Please complete all fields to continue',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            const Center(
+                              child: Text(
+                                'Profile Details',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 0,
+                              child: TextButton(
+                                onPressed: _isCreatingProfile || _isUploadingImage
+                                    ? null
+                                    : _handleSkip,
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(50, 30),
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  'Skip',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: _isCreatingProfile || _isUploadingImage
+                                        ? Colors.grey
+                                        : Colors.red.shade400,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Center(
+                          child: Text(
+                            'Please complete all fields to continue',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 20),
                       ] else ...[
                         const SizedBox(height: 20),
                       ],
