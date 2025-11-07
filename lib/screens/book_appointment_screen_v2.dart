@@ -1662,6 +1662,18 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       return;
     }
 
+    print(bookingData.toBookingRequest(context).toJson()["profileId"]);
+
+    if (bookingData.toBookingRequest(context).toJson()["profileId"] == null || bookingData.toBookingRequest(context).toJson()["profileId"] == "") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please create a Profile to complete Booking'),
+          backgroundColor: Colors.orange.shade700,
+        ),
+      );
+      return;
+    }
+
     _showConfirmationDialog();
   }
 
