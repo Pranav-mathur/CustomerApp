@@ -1516,7 +1516,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       title: 'My Profiles',
                       onTap: () {
                         Navigator.pop(context);
-                        Navigator.pushNamed(context, '/profiles-list');
+                        Navigator.pushNamed(context, '/profiles-list').then((_) {
+                          _loadAllData();
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            Provider.of<ProfileProvider>(context, listen: false).loadActiveUserProfile();
+                          });
+                        });
                       },
                     ),
                     const SizedBox(height: 16),

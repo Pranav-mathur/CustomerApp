@@ -1408,9 +1408,13 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
               child: TextFormField(
                 controller: _measurementValueControllers[index],
                 enabled: !_isCreatingProfile,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 decoration: InputDecoration(
-                  labelText: 'Value',
-                  hintText: '38 inch',
+                  labelText: 'Value(in cm)',
+                  hintText: '38',
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.white,
