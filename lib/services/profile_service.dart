@@ -74,6 +74,7 @@ class ProfileService {
     required String? imageUrl,
     required List<MeasurementModel> measurements,
     required AddressModel? address,
+    String? relationship,
     double? latitude,  // Add this
     double? longitude, // Add this
   }) async {
@@ -162,6 +163,7 @@ class ProfileService {
     required String? imageUrl,
     required List<MeasurementModel> measurements,
     required AddressModel? address,
+    String? relationship,
   }) async {
     try {
       final token = await _authService.getToken();

@@ -34,11 +34,6 @@ class _AddFamilyProfileScreenState extends State<AddFamilyProfileScreen> {
     'Son',
     'Daughter',
     'Spouse',
-    'Brother',
-    'Sister',
-    'Grandfather',
-    'Grandmother',
-    'Other',
   ];
 
   @override
@@ -128,16 +123,13 @@ class _AddFamilyProfileScreenState extends State<AddFamilyProfileScreen> {
 
   void _saveProfile() {
     if (_formKey.currentState!.validate()) {
-      if (_selectedRelationship == null) {
-        _showErrorSnackBar('Please select a relationship');
-        return;
-      }
+      // Relationship is now optional, so we don't need to check for it
 
       final profile = FamilyProfileModel(
         id: widget.profileId,
         name: _nameController.text.trim(),
         mobile: _mobileController.text.trim(),
-        relationship: _selectedRelationship,
+        relationship: _selectedRelationship, // Can be null
         profileImagePath: _profileImagePath,
         address: _address,
         measurements: _measurements,
@@ -187,7 +179,7 @@ class _AddFamilyProfileScreenState extends State<AddFamilyProfileScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.profileId != null ? 'Edit Profile' : 'Add Profiles',
+          widget.profileId != null ? 'Edit Profile' : 'Add Profile',
           style: const TextStyle(
             color: Colors.black87,
             fontSize: 20,
@@ -278,7 +270,7 @@ class _AddFamilyProfileScreenState extends State<AddFamilyProfileScreen> {
 
                       const SizedBox(height: 20),
 
-                      // Relationship Field
+                      // Relationship Field (Optional)
                       const Text(
                         'Relationship',
                         style: TextStyle(
@@ -302,12 +294,7 @@ class _AddFamilyProfileScreenState extends State<AddFamilyProfileScreen> {
                             _selectedRelationship = value;
                           });
                         },
-                        validator: (value) {
-                          if (value == null) {
-                            return 'Please select relationship';
-                          }
-                          return null;
-                        },
+                        // No validator - making it optional
                       ),
 
                       const SizedBox(height: 20),

@@ -34,6 +34,16 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   String? _editingProfileId;
   UserProfileModel? _existingProfile;
   bool _hasChanges = false;
+  String? _selectedRelationship; // New field for relationship
+
+  // Relationship options
+  final List<String> _relationships = [
+    'Father',
+    'Mother',
+    'Son',
+    'Daughter',
+    'Spouse',
+  ];
 
   // Available measurement types
   final List<String> _allMeasurementTypes = [
@@ -62,6 +72,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   String? _originalEmail;
   String? _originalGender;
   String? _originalImageUrl;
+  String? _originalRelationship; // New field
   List<ProfileMeasurement>? _originalMeasurements;
 
   @override
@@ -115,11 +126,16 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     _emailController.text = '';
     _uploadedImageUrl = _existingProfile!.imageUrl;
 
+    // Load relationship if available (assuming UserProfileModel has relationship field)
+    // If not available in the model, it will remain null
+    _selectedRelationship = null; // or _existingProfile!.relationship if the field exists
+
     // Store original values
     _originalName = _existingProfile!.profileName;
     _originalEmail = ''; // Start with empty since not in fetched model
     _originalGender = _existingProfile!.gender;
     _originalImageUrl = _existingProfile!.imageUrl;
+    _originalRelationship = _selectedRelationship;
     _originalMeasurements = List.from(_existingProfile!.measurements);
 
     // Update provider
@@ -158,6 +174,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     // Note: UserProfileModel doesn't have email in the fetched data
     if (provider.profile.gender != _originalGender) changed = true;
     if (_uploadedImageUrl != _originalImageUrl) changed = true;
+    if (_selectedRelationship != _originalRelationship) changed = true; // Check relationship
 
     // Check measurements
     if (_originalMeasurements != null) {
@@ -381,6 +398,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       return false;
     }
 
+    // Relationship is optional - no validation needed
+
     if (provider.profile.measurements.isEmpty) {
       _showErrorSnackBar('Please add at least one measurement');
       return false;
@@ -437,7 +456,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         );
       }).toList();
 
-      // Update profile without address
+      // Update profile with relationship (if provided)
       final response = await _profileService.updateProfile(
         profileId: _editingProfileId!,
         profileName: provider.profile.name!,
@@ -446,6 +465,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         imageUrl: _uploadedImageUrl,
         measurements: measurements,
         address: null, // Don't send address during update
+        relationship: _selectedRelationship, // Pass relationship (can be null)
       );
 
       if (!mounted) return;
@@ -520,6 +540,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         imageUrl: _uploadedImageUrl,
         measurements: measurements,
         address: null,
+        relationship: _selectedRelationship, // Pass relationship (can be null)
       );
 
       if (!mounted) return;
@@ -969,6 +990,64 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                                   _checkForChanges();
                                 }
                               },
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Relationship Field (Optional)
+                            const Text(
+                              'Relationship',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: _selectedRelationship,
+                              decoration: InputDecoration(
+                                hintText: 'Select relationship',
+                                hintStyle: TextStyle(color: Colors.grey.shade400),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.red.shade300,
+                                    width: 2,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
+                              ),
+                              items: _relationships.map((relationship) {
+                                return DropdownMenuItem(
+                                  value: relationship,
+                                  child: Text(relationship),
+                                );
+                              }).toList(),
+                              onChanged: _isCreatingProfile
+                                  ? null
+                                  : (value) {
+                                setState(() {
+                                  _selectedRelationship = value;
+                                });
+                                if (_isEditMode) {
+                                  _checkForChanges();
+                                }
+                              },
+                              // No validator - making it optional
                             ),
 
                             const SizedBox(height: 24),

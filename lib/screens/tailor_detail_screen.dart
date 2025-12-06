@@ -1,5 +1,7 @@
 // screens/tailor_detail_screen.dart
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/book_appointment_models.dart';
@@ -29,9 +31,9 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   bool isLoading = true;
   String? errorMessage;
   String selectedGender = 'Men';
-  List<String> genderTabs = ['Men', 'Women', 'Kids'];
-  String? selectedDate; // Changed to nullable
-  String? selectedTime; // Changed to nullable
+  List<String> genderTabs = ['Men', 'Women', 'Kids', 'Designers'];
+  String? selectedDate;
+  String? selectedTime;
   int totalItems = 0;
 
   final TailorService _tailorService = TailorService();
@@ -51,6 +53,13 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
 
     try {
       final detail = await _tailorService.getTailorDetail(widget.tailorId);
+      print(detail.services);
+      print('\n=== GALLERY DATA (JSON) ===');
+      final galleryJson = detail.gallery.map((item) => {
+        'imageUrl': item.imageUrl,
+      }).toList();
+      print(JsonEncoder.withIndent('  ').convert(galleryJson));
+
       setState(() {
         tailorDetail = detail;
         isLoading = false;
@@ -158,41 +167,50 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildErrorState() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.symmetric(
+          horizontal: screenWidth * 0.08,
+          vertical: 24,
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.error_outline,
-              size: 64,
+              size: screenWidth * 0.16,
               color: Colors.red.shade400,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: screenWidth * 0.04),
             Text(
               'Failed to load tailor details',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 18,
+                fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey.shade800,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: screenWidth * 0.02),
             Text(
               errorMessage ?? 'Unknown error',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: screenWidth * 0.035,
                 color: Colors.grey.shade600,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: screenWidth * 0.06),
             ElevatedButton(
               onPressed: _loadTailorDetail,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red.shade400,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.08,
+                  vertical: 12,
+                ),
               ),
               child: const Text('Retry'),
             ),
@@ -209,8 +227,12 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildHeader() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenWidth < 360;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -224,54 +246,61 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       child: Column(
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.black87),
                 onPressed: () => Navigator.pop(context),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
+                iconSize: screenWidth * 0.06,
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: screenWidth * 0.03),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       tailorDetail!.name,
-                      style: const TextStyle(
-                        fontSize: 22,
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.053,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: screenHeight * 0.005),
                     Row(
                       children: [
                         Text(
                           tailorDetail!.rating.toString(),
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.035,
                             color: Colors.black87,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: screenWidth * 0.01),
                         ...List.generate(
                           5,
                               (index) => Icon(
                             Icons.star,
-                            size: 14,
+                            size: screenWidth * 0.035,
                             color: index < tailorDetail!.rating.floor()
                                 ? Colors.orange
                                 : Colors.grey.shade300,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '(${tailorDetail!.reviewCount})',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
+                        SizedBox(width: screenWidth * 0.01),
+                        Flexible(
+                          child: Text(
+                            '(${tailorDetail!.reviewCount})',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.032,
+                              color: Colors.grey.shade600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -279,25 +308,32 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                   ],
                 ),
               ),
+              SizedBox(width: screenWidth * 0.02),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.025,
+                  vertical: screenHeight * 0.006,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Image.network(
                       'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/480px-Google_%22G%22_logo.svg.png',
-                      width: 16,
-                      height: 16,
+                      width: screenWidth * 0.04,
+                      height: screenWidth * 0.04,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Icon(Icons.star, size: screenWidth * 0.04),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: screenWidth * 0.015),
                     Text(
                       tailorDetail!.googleRating.toString(),
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.035,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
@@ -307,37 +343,56 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(Icons.people_outline, size: 16, color: Colors.grey.shade600),
-              const SizedBox(width: 4),
-              Text(
-                '${tailorDetail!.distance.toStringAsFixed(2)} km',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-              const SizedBox(width: 16),
-              Icon(Icons.shopping_bag_outlined, size: 16, color: Colors.grey.shade600),
-              const SizedBox(width: 4),
-              Text(
-                tailorDetail!.deliveryTime,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-              const SizedBox(width: 16),
-              Icon(Icons.camera_alt_outlined, size: 16, color: Colors.grey.shade600),
-              const SizedBox(width: 4),
-              Text(
-                'starts from ₹${tailorDetail!.startingPrice}',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-            ],
+          SizedBox(height: screenHeight * 0.015),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildInfoChip(
+                  Icons.people_outline,
+                  '${tailorDetail!.distance.toStringAsFixed(1)} km',
+                  screenWidth,
+                ),
+                SizedBox(width: screenWidth * 0.04),
+                _buildInfoChip(
+                  Icons.shopping_bag_outlined,
+                  tailorDetail!.deliveryTime,
+                  screenWidth,
+                ),
+                SizedBox(width: screenWidth * 0.04),
+                _buildInfoChip(
+                  Icons.camera_alt_outlined,
+                  'from ₹${tailorDetail!.startingPrice}',
+                  screenWidth,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildInfoChip(IconData icon, String text, double screenWidth) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: screenWidth * 0.04, color: Colors.grey.shade600),
+        SizedBox(width: screenWidth * 0.01),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: screenWidth * 0.032,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTabBar() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -348,23 +403,27 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
         controller: _tabController,
         labelColor: Colors.red.shade400,
         unselectedLabelColor: Colors.grey.shade600,
-        labelStyle: const TextStyle(
-          fontSize: 16,
+        labelStyle: TextStyle(
+          fontSize: screenWidth * 0.038,
           fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: screenWidth * 0.038,
+          fontWeight: FontWeight.normal,
         ),
         indicatorColor: Colors.red.shade400,
         indicatorWeight: 3,
-        tabs: const [
+        tabs: [
           Tab(
-            icon: Icon(Icons.grid_view, size: 20),
+            icon: Icon(Icons.grid_view, size: screenWidth * 0.05),
             text: 'Services',
           ),
           Tab(
-            icon: Icon(Icons.photo_library_outlined, size: 20),
+            icon: Icon(Icons.photo_library_outlined, size: screenWidth * 0.05),
             text: 'Gallery',
           ),
           Tab(
-            icon: Icon(Icons.star_outline, size: 20),
+            icon: Icon(Icons.star_outline, size: screenWidth * 0.05),
             text: 'Reviews',
           ),
         ],
@@ -384,12 +443,17 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildGenderSelector() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final itemWidth = screenWidth * 0.22;
+    final itemHeight = screenHeight * 0.18;
+
     return Container(
-      height: 160,
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      height: itemHeight,
+      padding: EdgeInsets.symmetric(vertical: screenHeight * 0.02),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
         itemCount: genderTabs.length,
         itemBuilder: (context, index) {
           final gender = genderTabs[index];
@@ -411,6 +475,10 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
               imageUrl = 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9';
               bgColor = Colors.pink.shade100;
               break;
+            case 'Designers':
+              imageUrl = 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d';
+              bgColor = Colors.purple.shade100;
+              break;
             default:
               imageUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d';
               bgColor = Colors.grey.shade100;
@@ -423,13 +491,13 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
               });
             },
             child: Container(
-              width: 100,
-              margin: const EdgeInsets.only(right: 12),
+              width: itemWidth,
+              margin: EdgeInsets.only(right: screenWidth * 0.03),
               child: Column(
                 children: [
                   Container(
-                    width: 90,
-                    height: 90,
+                    width: itemWidth,
+                    height: itemWidth,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       color: bgColor,
@@ -443,14 +511,16 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: screenHeight * 0.008),
                   Text(
                     gender,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: screenWidth * 0.035,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected ? Colors.red.shade400 : Colors.black87,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -473,7 +543,7 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
       itemCount: serviceGender.categories.length,
       itemBuilder: (context, index) {
         final category = serviceGender.categories[index];
@@ -483,8 +553,10 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildCategoryCard(ServiceCategory category) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: screenWidth * 0.03),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -495,17 +567,19 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
           InkWell(
             onTap: () => _toggleCategory(selectedGender, category.categoryId),
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(screenWidth * 0.04),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
                       category.categoryName,
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.04,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Icon(
@@ -513,6 +587,7 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                         ? Icons.keyboard_arrow_up
                         : Icons.keyboard_arrow_down,
                     color: Colors.grey.shade600,
+                    size: screenWidth * 0.06,
                   ),
                 ],
               ),
@@ -528,18 +603,24 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildSubCategoryItem(String categoryId, SubCategory subCategory) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenWidth < 360;
+    final imageSize = screenWidth * 0.18;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: Colors.grey.shade100, width: 1),
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 70,
-            height: 70,
+            width: imageSize,
+            height: imageSize,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               image: DecorationImage(
@@ -548,54 +629,67 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: screenWidth * 0.03),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   subCategory.name,
-                  style: const TextStyle(
-                    fontSize: 15,
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.038,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
+                    height: 1.2,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Row(
+                SizedBox(height: screenHeight * 0.005),
+                Wrap(
+                  spacing: screenWidth * 0.02,
+                  runSpacing: screenHeight * 0.005,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       '₹${subCategory.price}',
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.036,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Icon(Icons.star, size: 12, color: Colors.orange),
-                    const SizedBox(width: 2),
-                    Text(
-                      '${subCategory.rating}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      '(${subCategory.reviewCount})',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.star,
+                          size: screenWidth * 0.03,
+                          color: Colors.orange,
+                        ),
+                        SizedBox(width: screenWidth * 0.005),
+                        Text(
+                          '${subCategory.rating}',
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.03,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        Text(
+                          ' (${subCategory.reviewCount})',
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.03,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: screenWidth * 0.02),
           if (subCategory.quantity == 0)
             OutlinedButton(
               onPressed: () => _updateQuantity(
@@ -607,12 +701,18 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.red.shade400,
                 side: BorderSide(color: Colors.red.shade400),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                minimumSize: const Size(70, 36),
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.03,
+                  vertical: screenHeight * 0.008,
+                ),
+                minimumSize: Size(screenWidth * 0.16, screenHeight * 0.04),
               ),
-              child: const Text(
+              child: Text(
                 '+ Add',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: screenWidth * 0.032,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             )
           else
@@ -622,40 +722,55 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.remove, size: 18, color: Colors.white),
+                    icon: Icon(
+                      Icons.remove,
+                      size: screenWidth * 0.045,
+                      color: Colors.white,
+                    ),
                     onPressed: () => _updateQuantity(
                       selectedGender,
                       categoryId,
                       subCategory.subCategoryId,
                       -1,
                     ),
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    padding: EdgeInsets.all(screenWidth * 0.01),
+                    constraints: BoxConstraints(
+                      minWidth: screenWidth * 0.08,
+                      minHeight: screenWidth * 0.08,
+                    ),
                   ),
                   Container(
-                    constraints: const BoxConstraints(minWidth: 24),
+                    constraints: BoxConstraints(minWidth: screenWidth * 0.06),
                     child: Text(
                       '${subCategory.quantity}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
+                        fontSize: screenWidth * 0.035,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                    icon: Icon(
+                      Icons.add,
+                      size: screenWidth * 0.045,
+                      color: Colors.white,
+                    ),
                     onPressed: () => _updateQuantity(
                       selectedGender,
                       categoryId,
                       subCategory.subCategoryId,
                       1,
                     ),
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    padding: EdgeInsets.all(screenWidth * 0.01),
+                    constraints: BoxConstraints(
+                      minWidth: screenWidth * 0.08,
+                      minHeight: screenWidth * 0.08,
+                    ),
                   ),
                 ],
               ),
@@ -666,6 +781,8 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildGalleryTab() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     if (tailorDetail!.gallery.isEmpty) {
       return Center(
         child: Text(
@@ -676,11 +793,11 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+      padding: EdgeInsets.all(screenWidth * 0.04),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: screenWidth < 360 ? 2 : 2,
+        crossAxisSpacing: screenWidth * 0.03,
+        mainAxisSpacing: screenWidth * 0.03,
         childAspectRatio: 0.8,
       ),
       itemCount: tailorDetail!.gallery.length,
@@ -700,6 +817,9 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildReviewsTab() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     if (tailorDetail!.reviews.isEmpty) {
       return Center(
         child: Text(
@@ -710,13 +830,13 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       itemCount: tailorDetail!.reviews.length,
       itemBuilder: (context, index) {
         final review = tailorDetail!.reviews[index];
         return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(16),
+          margin: EdgeInsets.only(bottom: screenWidth * 0.04),
+          padding: EdgeInsets.all(screenWidth * 0.04),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -726,43 +846,49 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CircleAvatar(
-                    radius: 24,
+                    radius: screenWidth * 0.06,
                     backgroundImage: NetworkImage(review.userImage),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: screenWidth * 0.03),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           review.userName,
-                          style: const TextStyle(
-                            fontSize: 15,
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.038,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: screenHeight * 0.005),
                         Row(
                           children: [
                             ...List.generate(
                               5,
                                   (i) => Icon(
                                 Icons.star,
-                                size: 14,
+                                size: screenWidth * 0.035,
                                 color: i < review.rating.floor()
                                     ? Colors.orange
                                     : Colors.grey.shade300,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              review.date,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
+                            SizedBox(width: screenWidth * 0.02),
+                            Flexible(
+                              child: Text(
+                                review.date,
+                                style: TextStyle(
+                                  fontSize: screenWidth * 0.03,
+                                  color: Colors.grey.shade600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -772,26 +898,26 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: screenHeight * 0.012),
               Text(
                 review.reviewText,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: screenWidth * 0.035,
                   color: Colors.grey.shade700,
                   height: 1.4,
                 ),
               ),
               if (review.images.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: screenHeight * 0.012),
                 SizedBox(
-                  height: 80,
+                  height: screenWidth * 0.2,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     itemCount: review.images.length,
                     itemBuilder: (context, i) {
                       return Container(
-                        width: 80,
-                        margin: const EdgeInsets.only(right: 8),
+                        width: screenWidth * 0.2,
+                        margin: EdgeInsets.only(right: screenWidth * 0.02),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
                           image: DecorationImage(
@@ -812,11 +938,12 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildFooter() {
-    // Check if time slot is selected
-    final bool hasTimeSlot = selectedDate != null && selectedTime != null;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final hasTimeSlot = selectedDate != null && selectedTime != null;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -827,150 +954,206 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.access_time, size: 20, color: Colors.grey.shade700),
-              const SizedBox(width: 8),
-              Text(
-                'Appointment Time',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.access_time,
+                  size: screenWidth * 0.05,
                   color: Colors.grey.shade700,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(
-                'Fabric pickup & measurement',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          InkWell(
-            onTap: _showTimeSlotPicker,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: hasTimeSlot ? Colors.grey.shade50 : Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: hasTimeSlot ? Colors.grey.shade300 : Colors.orange.shade300,
-                  width: hasTimeSlot ? 1 : 2,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 18,
-                    color: hasTimeSlot ? Colors.grey.shade600 : Colors.orange.shade700,
+                SizedBox(width: screenWidth * 0.02),
+                Text(
+                  'Appointment Time',
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.036,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          hasTimeSlot ? selectedDate! : 'Choose Time Slot',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: hasTimeSlot ? Colors.black87 : Colors.orange.shade700,
-                          ),
-                        ),
-                        if (hasTimeSlot) ...[
-                          const SizedBox(height: 2),
+                ),
+              ],
+            ),
+            SizedBox(height: screenHeight * 0.008),
+            Row(
+              children: [
+                Text(
+                  'Fabric pickup & measurement',
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.032,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: screenHeight * 0.015),
+            InkWell(
+              onTap: _showTimeSlotPicker,
+              child: Container(
+                padding: EdgeInsets.all(screenWidth * 0.04),
+                decoration: BoxDecoration(
+                  color: hasTimeSlot ? Colors.grey.shade50 : Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: hasTimeSlot ? Colors.grey.shade300 : Colors.orange.shade300,
+                    width: hasTimeSlot ? 1 : 2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: screenWidth * 0.045,
+                      color: hasTimeSlot ? Colors.grey.shade600 : Colors.orange.shade700,
+                    ),
+                    SizedBox(width: screenWidth * 0.03),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            selectedTime!,
+                            hasTimeSlot ? selectedDate! : 'Choose Time Slot',
                             style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade600,
+                              fontSize: screenWidth * 0.038,
+                              fontWeight: FontWeight.bold,
+                              color: hasTimeSlot ? Colors.black87 : Colors.orange.shade700,
                             ),
                           ),
-                        ] else ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Tap to select date and time',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.orange.shade700,
+                          if (hasTimeSlot) ...[
+                            SizedBox(height: screenHeight * 0.003),
+                            Text(
+                              selectedTime!,
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.032,
+                                color: Colors.grey.shade600,
+                              ),
                             ),
+                          ] else ...[
+                            SizedBox(height: screenHeight * 0.003),
+                            Text(
+                              'Tap to select date and time',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.032,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      size: screenWidth * 0.06,
+                      color: hasTimeSlot ? Colors.grey.shade600 : Colors.orange.shade700,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: screenHeight * 0.02),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: hasTimeSlot ? _navigateToBookAppointment : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade400,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.018),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isVerySmall = constraints.maxWidth < 300;
+
+                    if (isVerySmall) {
+                      // Stack layout for very small screens
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$totalItems Selected',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.038,
+                              fontWeight: FontWeight.bold,
+                              color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Book Appointment',
+                                style: TextStyle(
+                                  fontSize: screenWidth * 0.038,
+                                  fontWeight: FontWeight.bold,
+                                  color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                                ),
+                              ),
+                              SizedBox(width: screenWidth * 0.02),
+                              Icon(
+                                Icons.arrow_forward,
+                                color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                                size: screenWidth * 0.05,
+                              ),
+                            ],
                           ),
                         ],
+                      );
+                    }
+
+                    // Horizontal layout for normal screens
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '$totalItems Selected',
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.04,
+                            fontWeight: FontWeight.bold,
+                            color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                          ),
+                        ),
+                        SizedBox(width: screenWidth * 0.04),
+                        Container(
+                          width: 1,
+                          height: screenHeight * 0.025,
+                          color: hasTimeSlot
+                              ? Colors.white.withOpacity(0.5)
+                              : Colors.grey.shade400,
+                        ),
+                        SizedBox(width: screenWidth * 0.04),
+                        Flexible(
+                          child: Text(
+                            'Book Appointment',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.04,
+                              fontWeight: FontWeight.bold,
+                              color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        SizedBox(width: screenWidth * 0.02),
+                        Icon(
+                          Icons.arrow_forward,
+                          color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                          size: screenWidth * 0.05,
+                        ),
                       ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: hasTimeSlot ? Colors.grey.shade600 : Colors.orange.shade700,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: hasTimeSlot ? _navigateToBookAppointment : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade400,
-                disabledBackgroundColor: Colors.grey.shade300,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                    );
+                  },
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '$totalItems Selected',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Container(
-                    width: 1,
-                    height: 20,
-                    color: hasTimeSlot
-                        ? Colors.white.withOpacity(0.5)
-                        : Colors.grey.shade400,
-                  ),
-                  const SizedBox(width: 24),
-                  Text(
-                    'Book Appointment',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.arrow_forward,
-                    color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                    size: 20,
-                  ),
-                ],
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1002,7 +1185,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
     } else if (date.toLowerCase() == 'tomorrow') {
       baseDate = now.add(const Duration(days: 1));
     } else {
-      // Try to parse the date string
       try {
         baseDate = now;
       } catch (e) {
@@ -1010,7 +1192,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       }
     }
 
-    // Parse time (e.g., "12:00 PM")
     try {
       final timeParts = time.split(' ');
       final hourMin = timeParts[0].split(':');
@@ -1032,7 +1213,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
         minute,
       );
     } catch (e) {
-      // If time parsing fails, default to current time
       return DateTime(
         baseDate.year,
         baseDate.month,
@@ -1044,7 +1224,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   void _navigateToBookAppointment() {
-    // Validate time slot is selected
     if (selectedDate == null || selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1056,7 +1235,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       return;
     }
 
-    // Collect all selected services as BookingCategoryExtended
     List<BookingCategoryExtended> bookingCategories = [];
 
     tailorDetail!.services.forEach((gender, serviceGender) {
@@ -1065,7 +1243,7 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
           if (subCategory.quantity > 0) {
             bookingCategories.add(
               BookingCategoryExtended(
-                gender: gender, // Men, Women, Kids
+                gender: gender,
                 categoryId: category.categoryId,
                 subCategoryName: subCategory.name,
                 quantity: subCategory.quantity,
@@ -1091,7 +1269,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       return;
     }
 
-    // Calculate payment breakup
     final totalTailoring = bookingCategories.fold<int>(
       0,
           (sum, category) => sum + category.totalPrice,
@@ -1101,10 +1278,8 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       totalTailoring: totalTailoring,
     );
 
-    // Convert selected date and time to DateTime
     final requestedDateTime = _parseDateTime(selectedDate!, selectedTime!);
 
-    // Create booking data
     final bookingData = BookingDataV2(
       tailorId: tailorDetail!.tailorId,
       tailorName: tailorDetail!.name,
@@ -1115,7 +1290,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       paymentBreakup: paymentBreakup,
     );
 
-    // Navigate to book appointment screen
     Navigator.pushNamed(
       context,
       '/book-appointment',

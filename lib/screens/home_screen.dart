@@ -1466,17 +1466,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             ],
                           ),
                         ),
-                        // GestureDetector(
-                        //   onTap: () {
-                        //     Navigator.pop(context);
-                        //     Navigator.pushNamed(context, '/profile-details');
-                        //   },
-                        //   child: Container(
-                        //     padding: const EdgeInsets.all(8),
-                        //     decoration: BoxDecoration(color: Colors.brown.shade50, borderRadius: BorderRadius.circular(8)),
-                        //     child: Icon(Icons.edit, size: 20, color: Colors.brown.shade700),
-                        //   ),
-                        // ),
                       ],
                     ),
                   ],
@@ -1506,11 +1495,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         Navigator.pushNamed(context, '/address-list');
                       },
                     ),
-                    // _buildDrawerItem(
-                    //   icon: Icons.payment_outlined,
-                    //   title: 'Payments',
-                    //   onTap: () => Navigator.pop(context),
-                    // ),
                     _buildDrawerItem(
                       icon: Icons.person_outline,
                       title: 'My Profiles',
@@ -1530,8 +1514,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
                       child: Text('Settings & Support', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
                     ),
-                    // _buildDrawerItem(icon: Icons.headset_mic_outlined, title: 'Contact Us', onTap: () => Navigator.pop(context)),
-                    // _buildDrawerItem(icon: Icons.share_outlined, title: 'Share App with Friends', onTap: () => Navigator.pop(context)),
+                    _buildDrawerItem(
+                      icon: Icons.headset_mic_outlined,
+                      title: 'Contact Us',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/contact-us');
+                      },
+                    ),
                     _buildDrawerItem(
                       icon: Icons.logout_outlined,
                       title: 'Logout',

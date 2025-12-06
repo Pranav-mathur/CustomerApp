@@ -6,6 +6,7 @@ import 'dart:convert';
 import '../models/order_models.dart';
 import '../models/order_details_model.dart';
 import '../services/auth_service.dart';
+import 'contact_us_screen.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final OrderModel? order; // Made optional
@@ -413,15 +414,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   ),
                                 ],
                               ),
-                              // if (orderDetails!.canEditPickupTime)
-                              //   Text(
-                              //     'Edit',
-                              //     style: TextStyle(
-                              //       fontSize: 15,
-                              //       fontWeight: FontWeight.w600,
-                              //       color: Colors.brown.shade700,
-                              //     ),
-                              //   ),
                             ],
                           ),
                         ],
@@ -491,11 +483,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                           color: Colors.grey.shade700,
                                         ),
                                       ),
-                                      // Icon(
-                                      //   Icons.keyboard_arrow_down,
-                                      //   size: 18,
-                                      //   color: Colors.grey.shade700,
-                                      // ),
                                     ],
                                   ),
                                 ],
@@ -755,51 +742,59 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
                     const SizedBox(height: 12),
 
-                    // // Need Support
-                    // _buildCompactCard(
-                    //   child: InkWell(
-                    //     onTap: () {},
-                    //     child: Row(
-                    //       children: [
-                    //         Icon(
-                    //           Icons.headset_mic,
-                    //           size: 24,
-                    //           color: Colors.black87,
-                    //         ),
-                    //         const SizedBox(width: 12),
-                    //         Column(
-                    //           crossAxisAlignment: CrossAxisAlignment.start,
-                    //           children: [
-                    //             Text(
-                    //               'Need Support?',
-                    //               style: TextStyle(
-                    //                 fontSize: 13,
-                    //                 color: Colors.grey.shade600,
-                    //               ),
-                    //             ),
-                    //             const SizedBox(height: 2),
-                    //             const Text(
-                    //               'Contact Us',
-                    //               style: TextStyle(
-                    //                 fontSize: 16,
-                    //                 fontWeight: FontWeight.bold,
-                    //                 color: Colors.black87,
-                    //               ),
-                    //             ),
-                    //           ],
-                    //         ),
-                    //         const Spacer(),
-                    //         Icon(
-                    //           Icons.chevron_right,
-                    //           size: 24,
-                    //           color: Colors.grey.shade400,
-                    //         ),
-                    //       ],
-                    //     ),
-                    //   ),
-                    // ),
-                    //
-                    // const SizedBox(height: 20),
+                    // Need Support - Contact Us
+                    _buildCompactCard(
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ContactUsScreen(),
+                            ),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.headset_mic_outlined,
+                              size: 24,
+                              color: Colors.black87,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Need Support?',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Contact Us',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right,
+                              size: 24,
+                              color: Colors.grey.shade400,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),

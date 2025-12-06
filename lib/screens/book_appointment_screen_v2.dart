@@ -12,6 +12,7 @@ import '../models/booking_request_model.dart';
 import '../services/address_service.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import '../screens/time_slot_picker.dart';
 import 'order_details_screen.dart';
 
 class BookAppointmentScreenV2 extends StatefulWidget {
@@ -66,7 +67,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // When app comes back to foreground after payment
     if (state == AppLifecycleState.resumed && isWaitingForPaymentReturn) {
       _handlePaymentReturn();
     }
@@ -79,7 +79,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       isWaitingForPaymentReturn = false;
     });
 
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -121,15 +120,12 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       ),
     );
 
-    // Wait for 7 seconds
     await Future.delayed(const Duration(seconds: 7));
 
     if (!mounted) return;
 
-    // Close loading dialog
     Navigator.of(context).pop();
 
-    // Navigate to OrderDetailsScreen with bookingId
     if (pendingBookingId != null && pendingBookingId!.isNotEmpty) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -140,7 +136,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
         ),
       );
     } else {
-      // Fallback: Navigate to home if no bookingId
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
@@ -406,31 +401,34 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
     DateTime baseDate;
     final now = DateTime.now();
 
-    if (date.toLowerCase() == 'today') {
+    if (date.toLowerCase().contains('today')) {
       baseDate = now;
-    } else if (date.toLowerCase() == 'tomorrow') {
+    } else if (date.toLowerCase().contains('tomorrow')) {
       baseDate = now.add(const Duration(days: 1));
     } else {
       baseDate = now;
     }
 
-    final timeParts = time.split(' ');
-    final hourMin = timeParts[0].split(':');
-    int hour = int.parse(hourMin[0]);
-    final minute = int.parse(hourMin[1]);
-    final isPM = timeParts.length > 1 && timeParts[1].toUpperCase() == 'PM';
+    try {
+      final timeParts = time.split(' ');
+      final hourMin = timeParts[0].split(':');
+      int hour = int.parse(hourMin[0]);
+      final minute = int.parse(hourMin[1]);
+      final isPM = timeParts.length > 1 && timeParts[1].toUpperCase() == 'PM';
 
-    if (isPM && hour != 12) {
-      hour += 12;
-    } else if (!isPM && hour == 12) {
-      hour = 0;
+      if (isPM && hour != 12) {
+        hour += 12;
+      } else if (!isPM && hour == 12) {
+        hour = 0;
+      }
+
+      return DateTime(baseDate.year, baseDate.month, baseDate.day, hour, minute);
+    } catch (e) {
+      return DateTime(baseDate.year, baseDate.month, baseDate.day, now.hour, now.minute);
     }
-
-    return DateTime(baseDate.year, baseDate.month, baseDate.day, hour, minute);
   }
 
   void _showAddFabricBottomSheet() {
-    // Reset state when opening
     _fabricNotesController.text = _fabricDetails;
 
     showModalBottomSheet(
@@ -446,7 +444,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
           ),
           child: Column(
             children: [
-              // Header
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -487,15 +484,12 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   ],
                 ),
               ),
-
-              // Content
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Fabric Details Section
                       const Text(
                         'Fabric Details',
                         style: TextStyle(
@@ -532,10 +526,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                           });
                         },
                       ),
-
                       const SizedBox(height: 24),
-
-                      // Reference Image Section
                       const Text(
                         'Reference Image',
                         style: TextStyle(
@@ -545,8 +536,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                         ),
                       ),
                       const SizedBox(height: 12),
-
-                      // Display uploaded images
                       if (_fabricReferenceImages.isNotEmpty) ...[
                         Wrap(
                           spacing: 12,
@@ -597,8 +586,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                         ),
                         const SizedBox(height: 12),
                       ],
-
-                      // Upload button
                       InkWell(
                         onTap: _isUploadingFabricImage ? null : () async {
                           await _pickAndUploadFabricImage();
@@ -658,8 +645,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   ),
                 ),
               ),
-
-              // Bottom Button
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -684,7 +669,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
 
                         setState(() {
                           bookingData = bookingData.copyWith(
-                            bringOwnFabric: false, // Getting fabric from tailor
+                            bringOwnFabric: false,
                           );
                         });
                         Navigator.pop(context);
@@ -715,18 +700,24 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
         ),
       ),
     ).then((_) {
-      // Update parent state when modal closes
       setState(() {});
     });
   }
 
-  void _showPickupTimeBottomSheet() {
+  // NEW: Show time slot picker
+  void _showTimeSlotPicker() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => TimeSlotPicker(
+        initialDate: bookingData.pickupDate,
+        initialTime: bookingData.pickupTime,
+        onConfirm: (date, time) {
+          _updateDateTime(date, time);
+          _showSuccessSnackBar('Pickup time updated successfully!');
+        },
       ),
-      builder: (context) => _buildPickupTimeSheet(),
     );
   }
 
@@ -773,6 +764,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
     }
 
     final hasFabricDetails = _fabricReferenceImages.isNotEmpty || _fabricDetails.trim().isNotEmpty;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -783,11 +775,11 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Book Appointment',
           style: TextStyle(
             color: Colors.black87,
-            fontSize: 20,
+            fontSize: screenWidth * 0.05,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -802,21 +794,21 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 16),
+                      SizedBox(height: screenWidth * 0.04),
                       _buildSectionTitle('Selected Services'),
                       _buildAddFabricCard(hasFabricDetails),
-                      const SizedBox(height: 12),
+                      SizedBox(height: screenWidth * 0.03),
                       _buildSelectedServicesList(),
-                      const SizedBox(height: 24),
+                      SizedBox(height: screenWidth * 0.06),
                       _buildSectionTitle('Preferred Pickup Time'),
                       _buildPickupTimeCard(),
-                      const SizedBox(height: 24),
+                      SizedBox(height: screenWidth * 0.06),
                       _buildSectionTitle('Pickup Location'),
                       _buildPickupLocationCard(),
-                      const SizedBox(height: 24),
+                      SizedBox(height: screenWidth * 0.06),
                       _buildSectionTitle('Payment Breakup'),
                       _buildPaymentBreakup(),
-                      const SizedBox(height: 100),
+                      SizedBox(height: screenWidth * 0.25),
                     ],
                   ),
                 ),
@@ -855,12 +847,17 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildSectionTitle(String title) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.04,
+        vertical: screenWidth * 0.02,
+      ),
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 16,
+          fontSize: screenWidth * 0.04,
           fontWeight: FontWeight.w600,
           color: Colors.grey.shade700,
         ),
@@ -869,8 +866,10 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildAddFabricCard(bool hasFabricDetails) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
       decoration: BoxDecoration(
         color: hasFabricDetails ? Colors.green.shade700 : Colors.brown.shade700,
         borderRadius: BorderRadius.circular(12),
@@ -881,12 +880,12 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
           onTap: _showAddFabricBottomSheet,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(screenWidth * 0.04),
             child: Row(
               children: [
                 Container(
-                  width: 60,
-                  height: 60,
+                  width: screenWidth * 0.15,
+                  height: screenWidth * 0.15,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     image: const DecorationImage(
@@ -897,26 +896,26 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: screenWidth * 0.04),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         hasFabricDetails ? 'Fabric Added' : 'Get Fabric',
-                        style: const TextStyle(
-                          fontSize: 18,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.045,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: screenWidth * 0.01),
                       Text(
                         hasFabricDetails
                             ? '${_fabricReferenceImages.length} image${_fabricReferenceImages.length != 1 ? 's' : ''} uploaded'
                             : 'we\'ll bring fabric with us',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: screenWidth * 0.035,
                           color: Colors.white.withOpacity(0.9),
                         ),
                       ),
@@ -924,7 +923,10 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.04,
+                    vertical: screenWidth * 0.02,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.red.shade400,
                     borderRadius: BorderRadius.circular(8),
@@ -932,15 +934,16 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (hasFabricDetails)
-                        const Icon(Icons.edit, size: 16, color: Colors.white)
-                      else
-                        const Icon(Icons.add, size: 16, color: Colors.white),
-                      const SizedBox(width: 4),
+                      Icon(
+                        hasFabricDetails ? Icons.edit : Icons.add,
+                        size: screenWidth * 0.04,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: screenWidth * 0.01),
                       Text(
                         hasFabricDetails ? 'Edit' : 'Add Fabric',
-                        style: const TextStyle(
-                          fontSize: 14,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.035,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
@@ -957,8 +960,10 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildSelectedServicesList() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -980,16 +985,18 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildServiceItem(BookingCategoryExtended category) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 70,
-                height: 70,
+                width: screenWidth * 0.18,
+                height: screenWidth * 0.18,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   image: DecorationImage(
@@ -998,67 +1005,85 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: screenWidth * 0.03),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       category.serviceName,
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.04,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: screenWidth * 0.01),
                     Text(
                       '${category.subCategoryName} · ₹${category.price}',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: screenWidth * 0.035,
                         color: Colors.grey.shade600,
                       ),
                     ),
                   ],
                 ),
               ),
+              SizedBox(width: screenWidth * 0.02),
               Container(
                 decoration: BoxDecoration(
                   color: Colors.red.shade400,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.remove, size: 18, color: Colors.white),
+                      icon: Icon(
+                        Icons.remove,
+                        size: screenWidth * 0.045,
+                        color: Colors.white,
+                      ),
                       onPressed: () => _updateCategoryQuantity(category.subCategoryId, -1),
-                      padding: const EdgeInsets.all(4),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: EdgeInsets.all(screenWidth * 0.01),
+                      constraints: BoxConstraints(
+                        minWidth: screenWidth * 0.08,
+                        minHeight: screenWidth * 0.08,
+                      ),
                     ),
                     Container(
-                      constraints: const BoxConstraints(minWidth: 24),
+                      constraints: BoxConstraints(minWidth: screenWidth * 0.06),
                       child: Text(
                         '${category.quantity}',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: screenWidth * 0.035,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                      icon: Icon(
+                        Icons.add,
+                        size: screenWidth * 0.045,
+                        color: Colors.white,
+                      ),
                       onPressed: () => _updateCategoryQuantity(category.subCategoryId, 1),
-                      padding: const EdgeInsets.all(4),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: EdgeInsets.all(screenWidth * 0.01),
+                      constraints: BoxConstraints(
+                        minWidth: screenWidth * 0.08,
+                        minHeight: screenWidth * 0.08,
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: screenWidth * 0.03),
           Row(
             children: [
               Expanded(
@@ -1066,24 +1091,24 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   onPressed: () => _showTagDialog(category),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: Colors.grey.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: EdgeInsets.symmetric(vertical: screenWidth * 0.025),
                   ),
                   child: Text(
                     category.tag ?? 'Tag',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: screenWidth * 0.032,
                       color: Colors.grey.shade700,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: screenWidth * 0.02),
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => _showReferenceDialog(category),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: Colors.grey.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: EdgeInsets.symmetric(vertical: screenWidth * 0.025),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1091,14 +1116,14 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                       Text(
                         category.reference ?? 'Reference',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: screenWidth * 0.032,
                           color: Colors.grey.shade700,
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: screenWidth * 0.01),
                       Icon(
                         Icons.info_outline,
-                        size: 16,
+                        size: screenWidth * 0.04,
                         color: Colors.grey.shade600,
                       ),
                     ],
@@ -1113,8 +1138,10 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildPickupTimeCard() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1122,13 +1149,14 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          onTap: _showTimeSlotPicker,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(screenWidth * 0.04),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(screenWidth * 0.03),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade100,
                     shape: BoxShape.circle,
@@ -1136,19 +1164,37 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   child: Icon(
                     Icons.access_time,
                     color: Colors.grey.shade700,
-                    size: 24,
+                    size: screenWidth * 0.06,
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: screenWidth * 0.04),
                 Expanded(
-                  child: Text(
-                    '${bookingData.pickupDate} ${bookingData.pickupTime}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bookingData.pickupDate,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.04,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.005),
+                      Text(
+                        bookingData.pickupTime,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.035,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: Colors.grey.shade600,
+                  size: screenWidth * 0.06,
                 ),
               ],
             ),
@@ -1159,10 +1205,12 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildPickupLocationCard() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     if (isLoadingAddresses) {
       return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.all(16),
+        margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+        padding: EdgeInsets.all(screenWidth * 0.04),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -1175,21 +1223,28 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
 
     if (addressError != null) {
       return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.all(16),
+        margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+        padding: EdgeInsets.all(screenWidth * 0.04),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           children: [
-            Icon(Icons.error_outline, color: Colors.red.shade400, size: 32),
-            const SizedBox(height: 8),
+            Icon(
+              Icons.error_outline,
+              color: Colors.red.shade400,
+              size: screenWidth * 0.08,
+            ),
+            SizedBox(height: screenWidth * 0.02),
             Text(
               'Failed to load addresses',
-              style: TextStyle(color: Colors.grey.shade700),
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: screenWidth * 0.035,
+              ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: screenWidth * 0.02),
             TextButton(
               onPressed: _loadAddresses,
               child: const Text('Retry'),
@@ -1202,7 +1257,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
     final selectedAddress = bookingData.selectedAddress;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1213,11 +1268,11 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
           onTap: _showAddressSelectionBottomSheet,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(screenWidth * 0.04),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(screenWidth * 0.03),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade100,
                     shape: BoxShape.circle,
@@ -1225,28 +1280,28 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   child: Icon(
                     Icons.location_on,
                     color: Colors.grey.shade700,
-                    size: 24,
+                    size: screenWidth * 0.06,
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: screenWidth * 0.04),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         selectedAddress?.addressType ?? 'Select Location',
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.04,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
                         ),
                       ),
                       if (selectedAddress != null) ...[
-                        const SizedBox(height: 4),
+                        SizedBox(height: screenWidth * 0.01),
                         Text(
                           '${selectedAddress.street}, ${selectedAddress.city}',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: screenWidth * 0.035,
                             color: Colors.grey.shade600,
                           ),
                           maxLines: 1,
@@ -1259,6 +1314,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                 Icon(
                   Icons.chevron_right,
                   color: Colors.grey.shade600,
+                  size: screenWidth * 0.06,
                 ),
               ],
             ),
@@ -1269,49 +1325,50 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildPaymentBreakup() {
+    final screenWidth = MediaQuery.of(context).size.width;
     final breakup = bookingData.paymentBreakup;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
           children: [
             _buildBreakupRow('Total Tailoring', '₹${breakup.totalTailoring}'),
-            const SizedBox(height: 12),
+            SizedBox(height: screenWidth * 0.03),
             _buildBreakupRow('Pickup Fee', '₹${breakup.pickupFee}'),
-            const SizedBox(height: 12),
+            SizedBox(height: screenWidth * 0.03),
             _buildBreakupRow('Tax', '₹${breakup.tax}'),
             if (breakup.discount > 0) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: screenWidth * 0.03),
               _buildBreakupRow(
                 'Discount',
                 '-₹${breakup.discount}',
                 isDiscount: true,
               ),
             ],
-            const SizedBox(height: 16),
+            SizedBox(height: screenWidth * 0.04),
             Divider(height: 1, color: Colors.grey.shade300),
-            const SizedBox(height: 16),
+            SizedBox(height: screenWidth * 0.04),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Total Amount',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: screenWidth * 0.045,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                 ),
                 Text(
                   '₹${breakup.totalAmount}',
-                  style: const TextStyle(
-                    fontSize: 20,
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.05,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
@@ -1325,20 +1382,22 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildBreakupRow(String label, String value, {bool isDiscount = false}) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
           style: TextStyle(
-            fontSize: 15,
+            fontSize: screenWidth * 0.038,
             color: Colors.grey.shade700,
           ),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize: 15,
+            fontSize: screenWidth * 0.038,
             fontWeight: FontWeight.w600,
             color: isDiscount ? Colors.green.shade700 : Colors.black87,
           ),
@@ -1348,8 +1407,10 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   }
 
   Widget _buildPaymentFooter() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -1370,7 +1431,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade400,
               disabledBackgroundColor: Colors.grey.shade300,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -1379,8 +1440,8 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
               isProcessingPayment
                   ? 'Processing...'
                   : 'Pay  ₹${bookingData.paymentBreakup.totalAmount}',
-              style: const TextStyle(
-                fontSize: 18,
+              style: TextStyle(
+                fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -1391,50 +1452,11 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
     );
   }
 
-  Widget _buildPickupTimeSheet() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Select Pickup Time',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Current: ${bookingData.pickupDate} ${bookingData.pickupTime}',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Show your TimeSlotPicker here and update the date/time
-              // _showTimeSlotPicker();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade400,
-              minimumSize: const Size(double.infinity, 48),
-            ),
-            child: const Text('Change Time'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildAddressSelectionSheet() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(screenWidth * 0.06),
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.7,
       ),
@@ -1445,10 +1467,10 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Select Pickup Location',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: screenWidth * 0.05,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
@@ -1459,22 +1481,26 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: screenWidth * 0.04),
           if (addresses.isEmpty)
             Center(
               child: Column(
                 children: [
-                  const SizedBox(height: 24),
-                  Icon(Icons.location_off, size: 64, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
+                  SizedBox(height: screenWidth * 0.06),
+                  Icon(
+                    Icons.location_off,
+                    size: screenWidth * 0.16,
+                    color: Colors.grey.shade400,
+                  ),
+                  SizedBox(height: screenWidth * 0.04),
                   Text(
                     'No addresses found',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: screenWidth * 0.04,
                       color: Colors.grey.shade600,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: screenWidth * 0.06),
                 ],
               ),
             )
@@ -1488,7 +1514,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                   final isSelected = bookingData.selectedAddress?.id == address.id;
 
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
+                    margin: EdgeInsets.only(bottom: screenWidth * 0.03),
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: isSelected ? Colors.red.shade400 : Colors.grey.shade300,
@@ -1558,7 +1584,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                 },
               ),
             ),
-          const SizedBox(height: 16),
+          SizedBox(height: screenWidth * 0.04),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
@@ -1754,7 +1780,6 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       final bookingRequest = bookingData.toBookingRequest(context);
       final requestJson = bookingRequest.toJson();
 
-      // Add fabric details at the root level (same level as profileId, etc.)
       if (_fabricReferenceImages.isNotEmpty) {
         requestJson['referenceImages'] = _fabricReferenceImages;
       }
@@ -1773,22 +1798,17 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       });
 
       if (response != null) {
-        // Clear fabric data after successful booking
         setState(() {
           _fabricReferenceImages.clear();
           _fabricDetails = '';
           _fabricNotesController.clear();
         });
 
-        // Extract payment link and booking ID
         final String? paymentLink = response['paymentLink'];
         final String? bookingId = response['bookingId'];
 
         if (paymentLink != null && paymentLink.isNotEmpty) {
-          // Store booking ID for reference
           pendingBookingId = bookingId;
-
-          // Launch payment URL immediately
           await _launchPaymentUrl(paymentLink);
         } else {
           throw Exception('Payment link not found in response');
@@ -1817,5 +1837,4 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       }
     }
   }
-
 }
