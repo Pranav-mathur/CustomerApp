@@ -23,6 +23,8 @@ import 'package:provider/provider.dart';
 import 'models/book_appointment_models.dart';
 import 'models/updated_booking_models.dart';
 import 'providers/auth_provider.dart';
+import 'providers/location_provider.dart';
+import 'screens/set_location_screen.dart';
 
 void main() async {
   // Ensure Flutter binding is initialized
@@ -49,6 +51,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => FamilyProfileProvider()),
+        ChangeNotifierProvider(create: (_) => LocationProvider()),
       ],
       child: const MyApp(),
     ),
@@ -80,6 +83,7 @@ class MyApp extends StatelessWidget {
         '/profiles-list': (context) => const ProfilesListScreen(),
         '/address-list': (context) => const AddressListScreen(),
         '/contact-us': (context) => const ContactUsScreen(),
+        '/set-location': (context) => const SetLocationScreen(),
         // Tailor detail and order details routes handled by onGenerateRoute
       },
       onGenerateRoute: (settings) {

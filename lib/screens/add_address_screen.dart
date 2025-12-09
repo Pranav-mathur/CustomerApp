@@ -34,6 +34,11 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   AddressModel? _editingAddress;
   bool _hasChanges = false;
 
+  // Location data from SetLocationScreen
+  Map<String, dynamic>? _locationData;
+  bool _hasLocationData = false;
+  bool _isFromOnboardingFlow = false; // Track if coming from onboarding
+
   // Store original values to detect changes
   String? _originalStreet;
   String? _originalCity;
@@ -59,12 +64,13 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
       if (args != null && args is Map) {
         if (args['mode'] == 'edit' && args['address'] != null) {
-          // Edit mode
+          // Edit mode - No location data handling
           final address = args['address'] as AddressModel;
           setState(() {
             _isEditMode = true;
             _editingAddress = address;
             _isFromAddressList = true;
+            _isFromOnboardingFlow = false; // Not from onboarding
 
             // Populate fields
             _streetController.text = address.street;
@@ -86,20 +92,88 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
           });
           debugPrint('✏️ Editing address: ${address.id}');
         } else if (args['fromAddressList'] == true) {
-          // Add new from address list
+          // Add new from address list - No location data handling
           setState(() {
             _isFromAddressList = true;
+            _isFromOnboardingFlow = false; // Not from onboarding
           });
           debugPrint('🔄 Opening add address from address list - fresh state');
+        } else if (args['locationData'] != null) {
+          // Coming from SetLocationScreen with location data (ONBOARDING FLOW)
+          setState(() {
+            _profileId = args['profileId'] as String?;
+            _locationData = args['locationData'] as Map<String, dynamic>?;
+            _hasLocationData = true;
+            _isFromOnboardingFlow = true; // This is onboarding flow
+          });
+
+          // Auto-populate fields from location data
+          _populateFieldsFromLocation();
+
+          debugPrint('📍 Received location data from SetLocationScreen (Onboarding)');
+          debugPrint('📋 Profile ID: $_profileId');
         }
       } else if (args is String) {
-        // Original onboarding flow with profile ID
+        // Direct profile ID without location data (shouldn't happen in new flow, but handling for safety)
         setState(() {
           _profileId = args;
+          _isFromOnboardingFlow = false;
         });
-        debugPrint('📋 Received profile ID: $_profileId');
+        debugPrint('📋 Received profile ID without location data: $_profileId');
       }
     });
+  }
+
+  void _populateFieldsFromLocation() {
+    if (_locationData == null) return;
+
+    // Extract street from location data
+    String street = _locationData!['street'] ?? '';
+    if (street.isEmpty) {
+      // If no street, use displayName
+      street = _locationData!['displayName'] ?? '';
+    }
+
+    // Populate fields
+    setState(() {
+      _streetController.text = street;
+      _cityController.text = _locationData!['city'] ?? '';
+      _stateController.text = _locationData!['state'] ?? '';
+      _pincodeController.text = _locationData!['postalCode'] ?? '';
+    });
+
+    debugPrint('✅ Auto-populated address fields from location data');
+  }
+
+  String _getLocationSummary() {
+    if (_locationData == null) return '';
+
+    List<String> parts = [];
+
+    final city = _locationData!['city'];
+    final state = _locationData!['state'];
+
+    if (city != null && city.isNotEmpty) parts.add(city);
+    if (state != null && state.isNotEmpty) parts.add(state);
+
+    return parts.join(', ');
+  }
+
+  String _getLocationTitle() {
+    if (_locationData == null) return '';
+
+    final displayName = _locationData!['displayName'];
+    final street = _locationData!['street'];
+
+    if (displayName != null && displayName.isNotEmpty) {
+      return displayName;
+    }
+
+    if (street != null && street.isNotEmpty) {
+      return street;
+    }
+
+    return 'Selected Location';
   }
 
   void _checkForChanges() {
@@ -382,17 +456,78 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      // Center(
-                      //   child: Text(
-                      //     'You can add your address later from settings',
-                      //     style: TextStyle(
-                      //       fontSize: 14,
-                      //       color: Colors.grey.shade600,
-                      //     ),
-                      //   ),
-                      // ),
-                      // const SizedBox(height: 20),
+                      const SizedBox(height: 20),
                     ] else ...[
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Location Summary Card - ONLY in onboarding flow with location data
+                    if (_hasLocationData && _isFromOnboardingFlow) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.grey.shade200,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            // Location Icon
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.location_on,
+                                size: 28,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Location Details
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _getLocationTitle(),
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _getLocationSummary(),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 20),
                     ],
 
@@ -412,29 +547,6 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Location Icon
-                          Center(
-                            child: Container(
-                              width: 70,
-                              height: 70,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.grey.shade200,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.location_on,
-                                size: 35,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 32),
-
                           // Street Field
                           _buildFieldLabel('Street Address'),
                           const SizedBox(height: 8),

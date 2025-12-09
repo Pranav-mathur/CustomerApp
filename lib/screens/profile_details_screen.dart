@@ -564,7 +564,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             } else {
               Navigator.pushNamed(
                 context,
-                '/add-address',
+                '/set-location',
                 arguments: profileId,
               );
             }
@@ -600,7 +600,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     // Navigate to add-address screen with null profileId to indicate skip
     Navigator.pushNamed(
       context,
-      '/add-address',
+      '/set-location',
       arguments: null,
     );
 
