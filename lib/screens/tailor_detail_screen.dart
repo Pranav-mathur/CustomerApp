@@ -432,12 +432,38 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
   }
 
   Widget _buildServicesTab() {
-    return Column(
+    final serviceGender = tailorDetail!.services[selectedGender];
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    if (serviceGender == null || serviceGender.categories.isEmpty) {
+      return Column(
+        children: [
+          _buildGenderSelector(),
+          Expanded(
+            child: Center(
+              child: Text(
+                'No services available',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView(
+      padding: EdgeInsets.zero,
       children: [
         _buildGenderSelector(),
-        Expanded(
-          child: _buildServicesList(),
-        ),
+        ...serviceGender.categories.map((category) =>
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: screenWidth * 0.04,
+              ),
+              child: _buildCategoryCard(category),
+            )
+        ).toList(),
+        SizedBox(height: screenWidth * 0.04),
       ],
     );
   }
@@ -528,27 +554,6 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
           );
         },
       ),
-    );
-  }
-
-  Widget _buildServicesList() {
-    final serviceGender = tailorDetail!.services[selectedGender];
-    if (serviceGender == null || serviceGender.categories.isEmpty) {
-      return Center(
-        child: Text(
-          'No services available',
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
-      itemCount: serviceGender.categories.length,
-      itemBuilder: (context, index) {
-        final category = serviceGender.categories[index];
-        return _buildCategoryCard(category);
-      },
     );
   }
 

@@ -62,14 +62,24 @@ flutter:
     - assets/images/tailor.png
     - assets/icons/
 
-# Native Splash Screen Configuration
+# ============================================================
+# PERFECT COLOR MATCH - Matches your SplashScreen exactly!
+# Background color: Color(0xFF1E1006) = #1E1006
+# This creates a seamless transition with NO visible flash
+# ============================================================
 flutter_native_splash:
-  color: "#FFFFFF"
-  image: assets/images/AppIcon.png
+  # EXACT color from your splash_screen.dart: Color(0xFF1E1006)
+  color: "#1E1006"
+
+  # NO IMAGE - Your Flutter SplashScreen shows the logo beautifully
+  # This prevents the faded/white logo issue completely
+
+  # Android 12+ configuration - same dark brown
+  android_12:
+    color: "#1E1006"
+    icon_background_color: "#1E1006"
+
+  # Platform support
   android: true
   ios: true
   web: false
-
-  android_12:
-    image: assets/images/AppIcon.png
-    color: "#FFFFFF"

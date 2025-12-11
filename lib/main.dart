@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart'; // ← ADD THIS IMPORT
 import 'models/book_appointment_models.dart';
 import 'models/updated_booking_models.dart';
 import 'providers/auth_provider.dart';
@@ -28,7 +29,10 @@ import 'screens/set_location_screen.dart';
 
 void main() async {
   // Ensure Flutter binding is initialized
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+
+  // ← ADD THIS: Preserve the native splash until Flutter UI is ready
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   // Set system UI overlay style to match splash screen
   SystemChrome.setSystemUIOverlayStyle(
@@ -63,6 +67,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ← ADD THIS: Remove native splash when first frame is rendered
+    // This ensures smooth transition to your SplashScreen widget
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FlutterNativeSplash.remove();
+    });
+
     return MaterialApp(
       title: 'Casa Darzi',
       debugShowCheckedModeBanner: false,
