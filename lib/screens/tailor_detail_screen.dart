@@ -472,87 +472,88 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final itemWidth = screenWidth * 0.22;
-    final itemHeight = screenHeight * 0.18;
 
     return Container(
-      height: itemHeight,
-      padding: EdgeInsets.symmetric(vertical: screenHeight * 0.02),
-      child: ListView.builder(
+      padding: EdgeInsets.symmetric(
+        vertical: screenHeight * 0.015,
+        horizontal: screenWidth * 0.04,
+      ),
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
-        itemCount: genderTabs.length,
-        itemBuilder: (context, index) {
-          final gender = genderTabs[index];
-          final isSelected = selectedGender == gender;
+        child: Row(
+          children: genderTabs.map((gender) {
+            final isSelected = selectedGender == gender;
 
-          String imageUrl;
-          Color bgColor;
+            String imageUrl;
+            Color bgColor;
 
-          switch (gender) {
-            case 'Men':
-              imageUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d';
-              bgColor = Colors.green.shade100;
-              break;
-            case 'Women':
-              imageUrl = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330';
-              bgColor = Colors.orange.shade100;
-              break;
-            case 'Kids':
-              imageUrl = 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9';
-              bgColor = Colors.pink.shade100;
-              break;
-            case 'Designers':
-              imageUrl = 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d';
-              bgColor = Colors.purple.shade100;
-              break;
-            default:
-              imageUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d';
-              bgColor = Colors.grey.shade100;
-          }
+            switch (gender) {
+              case 'Men':
+                imageUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d';
+                bgColor = Colors.green.shade100;
+                break;
+              case 'Women':
+                imageUrl = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330';
+                bgColor = Colors.orange.shade100;
+                break;
+              case 'Kids':
+                imageUrl = 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9';
+                bgColor = Colors.pink.shade100;
+                break;
+              case 'Designers':
+                imageUrl = 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d';
+                bgColor = Colors.purple.shade100;
+                break;
+              default:
+                imageUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d';
+                bgColor = Colors.grey.shade100;
+            }
 
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                selectedGender = gender;
-              });
-            },
-            child: Container(
-              width: itemWidth,
-              margin: EdgeInsets.only(right: screenWidth * 0.03),
-              child: Column(
-                children: [
-                  Container(
-                    width: itemWidth,
-                    height: itemWidth,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: bgColor,
-                      border: Border.all(
-                        color: isSelected ? Colors.red.shade400 : Colors.transparent,
-                        width: 2,
-                      ),
-                      image: DecorationImage(
-                        image: NetworkImage(imageUrl),
-                        fit: BoxFit.cover,
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedGender = gender;
+                });
+              },
+              child: Container(
+                width: itemWidth,
+                margin: EdgeInsets.only(right: screenWidth * 0.03),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: itemWidth,
+                      height: itemWidth,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: bgColor,
+                        border: Border.all(
+                          color: isSelected ? Colors.red.shade400 : Colors.transparent,
+                          width: 2,
+                        ),
+                        image: DecorationImage(
+                          image: NetworkImage(imageUrl),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(height: screenHeight * 0.008),
-                  Text(
-                    gender,
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.035,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? Colors.red.shade400 : Colors.black87,
+                    SizedBox(height: screenHeight * 0.006),
+                    Text(
+                      gender,
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.033,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected ? Colors.red.shade400 : Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -948,14 +949,17 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
     final hasTimeSlot = selectedDate != null && selectedTime != null;
 
     return Container(
-      padding: EdgeInsets.all(screenWidth * 0.04),
+      padding: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.04,
+        vertical: screenHeight * 0.012,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 6,
+            offset: const Offset(0, -1),
           ),
         ],
       ),
@@ -964,85 +968,95 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Header - more compact
             Row(
               children: [
                 Icon(
                   Icons.access_time,
-                  size: screenWidth * 0.05,
+                  size: screenWidth * 0.042,
                   color: Colors.grey.shade700,
                 ),
-                SizedBox(width: screenWidth * 0.02),
+                SizedBox(width: screenWidth * 0.015),
                 Text(
                   'Appointment Time',
                   style: TextStyle(
-                    fontSize: screenWidth * 0.036,
-                    fontWeight: FontWeight.bold,
+                    fontSize: screenWidth * 0.033,
+                    fontWeight: FontWeight.w600,
                     color: Colors.grey.shade700,
                   ),
                 ),
               ],
             ),
-            SizedBox(height: screenHeight * 0.008),
+            SizedBox(height: screenHeight * 0.003),
+            // Subtitle
             Row(
               children: [
                 Text(
                   'Fabric pickup & measurement',
                   style: TextStyle(
-                    fontSize: screenWidth * 0.032,
+                    fontSize: screenWidth * 0.028,
                     color: Colors.grey.shade600,
                   ),
                 ),
               ],
             ),
-            SizedBox(height: screenHeight * 0.015),
+            SizedBox(height: screenHeight * 0.01),
+            // Time Slot Selector - Much more compact
             InkWell(
               onTap: _showTimeSlotPicker,
               child: Container(
-                padding: EdgeInsets.all(screenWidth * 0.04),
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.035,
+                  vertical: screenHeight * 0.012,
+                ),
                 decoration: BoxDecoration(
                   color: hasTimeSlot ? Colors.grey.shade50 : Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: hasTimeSlot ? Colors.grey.shade300 : Colors.orange.shade300,
-                    width: hasTimeSlot ? 1 : 2,
+                    width: hasTimeSlot ? 1 : 1.5,
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.calendar_today,
-                      size: screenWidth * 0.045,
+                      size: screenWidth * 0.038,
                       color: hasTimeSlot ? Colors.grey.shade600 : Colors.orange.shade700,
                     ),
-                    SizedBox(width: screenWidth * 0.03),
+                    SizedBox(width: screenWidth * 0.025),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             hasTimeSlot ? selectedDate! : 'Choose Time Slot',
                             style: TextStyle(
-                              fontSize: screenWidth * 0.038,
-                              fontWeight: FontWeight.bold,
+                              fontSize: screenWidth * 0.035,
+                              fontWeight: FontWeight.w600,
                               color: hasTimeSlot ? Colors.black87 : Colors.orange.shade700,
+                              height: 1.2,
                             ),
                           ),
                           if (hasTimeSlot) ...[
-                            SizedBox(height: screenHeight * 0.003),
+                            SizedBox(height: screenHeight * 0.002),
                             Text(
                               selectedTime!,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.032,
+                                fontSize: screenWidth * 0.029,
                                 color: Colors.grey.shade600,
+                                height: 1.2,
                               ),
                             ),
                           ] else ...[
-                            SizedBox(height: screenHeight * 0.003),
+                            SizedBox(height: screenHeight * 0.002),
                             Text(
                               'Tap to select date and time',
                               style: TextStyle(
-                                fontSize: screenWidth * 0.032,
+                                fontSize: screenWidth * 0.028,
                                 color: Colors.orange.shade700,
+                                height: 1.2,
                               ),
                             ),
                           ],
@@ -1051,14 +1065,15 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                     ),
                     Icon(
                       Icons.chevron_right,
-                      size: screenWidth * 0.06,
+                      size: screenWidth * 0.05,
                       color: hasTimeSlot ? Colors.grey.shade600 : Colors.orange.shade700,
                     ),
                   ],
                 ),
               ),
             ),
-            SizedBox(height: screenHeight * 0.02),
+            SizedBox(height: screenHeight * 0.012),
+            // Book Button - More compact
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -1066,94 +1081,46 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red.shade400,
                   disabledBackgroundColor: Colors.grey.shade300,
-                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.018),
+                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.014),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isVerySmall = constraints.maxWidth < 300;
-
-                    if (isVerySmall) {
-                      // Stack layout for very small screens
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '$totalItems Selected',
-                            style: TextStyle(
-                              fontSize: screenWidth * 0.038,
-                              fontWeight: FontWeight.bold,
-                              color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Book Appointment',
-                                style: TextStyle(
-                                  fontSize: screenWidth * 0.038,
-                                  fontWeight: FontWeight.bold,
-                                  color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                                ),
-                              ),
-                              SizedBox(width: screenWidth * 0.02),
-                              Icon(
-                                Icons.arrow_forward,
-                                color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                                size: screenWidth * 0.05,
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    }
-
-                    // Horizontal layout for normal screens
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '$totalItems Selected',
-                          style: TextStyle(
-                            fontSize: screenWidth * 0.04,
-                            fontWeight: FontWeight.bold,
-                            color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                          ),
-                        ),
-                        SizedBox(width: screenWidth * 0.04),
-                        Container(
-                          width: 1,
-                          height: screenHeight * 0.025,
-                          color: hasTimeSlot
-                              ? Colors.white.withOpacity(0.5)
-                              : Colors.grey.shade400,
-                        ),
-                        SizedBox(width: screenWidth * 0.04),
-                        Flexible(
-                          child: Text(
-                            'Book Appointment',
-                            style: TextStyle(
-                              fontSize: screenWidth * 0.04,
-                              fontWeight: FontWeight.bold,
-                              color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        SizedBox(width: screenWidth * 0.02),
-                        Icon(
-                          Icons.arrow_forward,
-                          color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
-                          size: screenWidth * 0.05,
-                        ),
-                      ],
-                    );
-                  },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '$totalItems Selected',
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.037,
+                        fontWeight: FontWeight.w600,
+                        color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                      ),
+                    ),
+                    SizedBox(width: screenWidth * 0.03),
+                    Container(
+                      width: 1,
+                      height: screenHeight * 0.02,
+                      color: hasTimeSlot
+                          ? Colors.white.withOpacity(0.5)
+                          : Colors.grey.shade400,
+                    ),
+                    SizedBox(width: screenWidth * 0.03),
+                    Text(
+                      'Book Appointment',
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.037,
+                        fontWeight: FontWeight.w600,
+                        color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                      ),
+                    ),
+                    SizedBox(width: screenWidth * 0.02),
+                    Icon(
+                      Icons.arrow_forward,
+                      color: hasTimeSlot ? Colors.white : Colors.grey.shade600,
+                      size: screenWidth * 0.045,
+                    ),
+                  ],
                 ),
               ),
             ),

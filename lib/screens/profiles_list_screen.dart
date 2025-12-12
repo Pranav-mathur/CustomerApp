@@ -135,36 +135,39 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
   }
 
   Widget _buildErrorState() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(screenWidth * 0.06),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.error_outline,
-              size: 64,
+              size: screenWidth * 0.16,
               color: Colors.red.shade300,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: screenWidth * 0.04),
             Text(
               'Oops! Something went wrong',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: screenWidth * 0.02),
             Text(
               _errorMessage ?? 'Unknown error',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: screenWidth * 0.035,
                 color: Colors.grey.shade600,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: screenWidth * 0.06),
             ElevatedButton.icon(
               onPressed: _loadProfiles,
               icon: const Icon(Icons.refresh),
@@ -172,9 +175,9 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red.shade400,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.06,
+                  vertical: screenWidth * 0.03,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -188,37 +191,39 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
   }
 
   Widget _buildProfilesList() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     if (_profiles.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(screenWidth * 0.06),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 Icons.person_outline,
-                size: 80,
+                size: screenWidth * 0.2,
                 color: Colors.grey.shade300,
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: screenWidth * 0.04),
               Text(
                 'No profiles yet',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: screenWidth * 0.05,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: screenWidth * 0.02),
               Text(
                 'Create your first profile to get started',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: screenWidth * 0.035,
                   color: Colors.grey.shade600,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: screenWidth * 0.06),
               ElevatedButton.icon(
                 onPressed: () async {
                   // Navigate to profile details with flag indicating it's from profiles list
@@ -238,9 +243,9 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red.shade400,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.06,
+                    vertical: screenWidth * 0.035,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -256,14 +261,14 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(screenWidth * 0.05),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Profiles created by you',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: screenWidth * 0.04,
                   color: Colors.grey.shade600,
                   fontWeight: FontWeight.w500,
                 ),
@@ -275,7 +280,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
           child: RefreshIndicator(
             onRefresh: _loadProfiles,
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
               itemCount: _profiles.length + 1, // +1 for Add New Profile button
               itemBuilder: (context, index) {
                 if (index == _profiles.length) {
@@ -291,13 +296,15 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
   }
 
   Widget _buildProfileCard(UserProfileModel profile) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     // Determine if this is the main user profile
     final isMainProfile = profile.profileName.toLowerCase().contains('you') ||
         profile.profileName.toLowerCase().contains('admin') ||
         _profiles.indexOf(profile) == 0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: screenWidth * 0.04),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -327,13 +334,13 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
         },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(screenWidth * 0.04),
           child: Row(
             children: [
               // Profile Image
               Container(
-                width: 60,
-                height: 60,
+                width: screenWidth * 0.15,
+                height: screenWidth * 0.15,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.grey.shade200,
@@ -350,19 +357,19 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
                     errorBuilder: (context, error, stackTrace) {
                       return Icon(
                         Icons.person,
-                        size: 30,
+                        size: screenWidth * 0.075,
                         color: Colors.grey.shade400,
                       );
                     },
                   )
                       : Icon(
                     Icons.person,
-                    size: 30,
+                    size: screenWidth * 0.075,
                     color: Colors.grey.shade400,
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: screenWidth * 0.04),
               // Profile Info
               Expanded(
                 child: Column(
@@ -370,38 +377,47 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
                   children: [
                     Text(
                       profile.profileName,
-                      style: const TextStyle(
-                        fontSize: 18,
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.045,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: screenWidth * 0.01),
                     Row(
                       children: [
                         if (isMainProfile) ...[
-                          Text(
-                            'You (admin)',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
+                          Flexible(
+                            child: Text(
+                              'You (admin)',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.035,
+                                color: Colors.grey.shade600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Text(
-                            ' • ',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade400,
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.01),
+                            child: Text(
+                              '•',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.035,
+                                color: Colors.grey.shade400,
+                              ),
                             ),
                           ),
                         ],
-                        Text(
-                          '${profile.measurements.length} measurement${profile.measurements.length != 1 ? 's' : ''}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
+                        Flexible(
+                          child: Text(
+                            '${profile.measurements.length} measurement${profile.measurements.length != 1 ? 's' : ''}',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.035,
+                              color: Colors.grey.shade600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -409,11 +425,12 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
                   ],
                 ),
               ),
+              SizedBox(width: screenWidth * 0.02),
               // Arrow Icon
               Icon(
                 Icons.chevron_right,
                 color: Colors.grey.shade400,
-                size: 28,
+                size: screenWidth * 0.07,
               ),
             ],
           ),
@@ -423,8 +440,10 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
   }
 
   Widget _buildAddNewProfileButton() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 24),
+      margin: EdgeInsets.only(top: screenWidth * 0.02, bottom: screenWidth * 0.06),
       child: InkWell(
         onTap: () async {
           // Navigate to profile details with flag indicating it's from profiles list
@@ -441,20 +460,20 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 Icons.add,
                 color: Colors.red.shade400,
-                size: 24,
+                size: screenWidth * 0.06,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: screenWidth * 0.02),
               Text(
                 'Add New Profile',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: screenWidth * 0.04,
                   fontWeight: FontWeight.w600,
                   color: Colors.red.shade400,
                 ),
