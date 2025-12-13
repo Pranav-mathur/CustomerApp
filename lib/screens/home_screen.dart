@@ -53,10 +53,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   List<String> _recentSearches = [];
   List<TailorModel> _searchResults = [];
 
+  // Filter states
+  bool _filterWithin5km = false;
+  bool _filterRating4Plus = false;
+  String? _sortOrder; // null, 'low-high', 'high-low'
+
   @override
   void initState() {
     super.initState();
-    // ⭐ ADD THIS: Reload global profile when home screen loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ProfileProvider>(context, listen: false).loadActiveUserProfile();
     });
@@ -105,14 +109,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
     final lowerQuery = query.toLowerCase();
 
-    // Combine featured and all tailors, remove duplicates
     final allTailorsList = [...featuredTailors, ...allTailors];
     final uniqueTailors = <String, TailorModel>{};
     for (var tailor in allTailorsList) {
       uniqueTailors[tailor.id] = tailor;
     }
 
-    // Filter by name
     final results = uniqueTailors.values.where((tailor) {
       return tailor.name.toLowerCase().contains(lowerQuery);
     }).toList();
@@ -222,6 +224,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         print('Categories type: ${data['categories'].runtimeType}');
         print('Featured tailors count: ${(data['featuredTailors'] as List?)?.length ?? 0}');
         print('All tailors count: ${(data['allTailors'] as List?)?.length ?? 0}');
+        print('All tailors: ${(data['allTailors'] as List?) ?? 0}');
+        print('All tailors rating: ${(data['allTailors'][0]['rating']) ?? 0}');
 
         List<BannerModel> tempBanners = [];
         try {
@@ -264,7 +268,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               .map((json) => TailorModel.fromJson(json))
               .toList();
 
-          // Filter out sponsored tailors - keep only non-sponsored
           tempAllTailors = allTailorsFromApi
               .where((tailor) => tailor.isSponsored != true)
               .toList();
@@ -297,7 +300,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           }
         }
 
-        // Debug: Print tailor data BEFORE setState
         print('=== TAILORS DEBUG ===');
         if (tempFeaturedTailors.isNotEmpty) {
           print('Sample Featured Tailor: ${tempFeaturedTailors.first.name}');
@@ -352,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         categories = [];
         _selectedCategoryId = null;
         _filteredFeaturedTailors = featuredTailors;
-        _filteredAllTailors = allTailors;
+        _applyFiltersAndSort();
       });
       return;
     }
@@ -383,7 +385,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
       _selectedCategoryId = null;
       _filteredFeaturedTailors = featuredTailors;
-      _filteredAllTailors = allTailors;
+      _applyFiltersAndSort();
     });
   }
 
@@ -396,12 +398,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _selectedCategoryId = categoryId;
 
       if (categoryId == null) {
-        // No filter - show all tailors
         _filteredFeaturedTailors = featuredTailors;
-        _filteredAllTailors = allTailors;
-        print('Filter cleared - showing all tailors');
+        _applyFiltersAndSort();
       } else {
-        // Filter by category ID
         _filteredFeaturedTailors = featuredTailors.where((tailor) {
           bool hasCategory = tailor.categories.any((cat) {
             bool matches = cat.categoryId == categoryId;
@@ -413,19 +412,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           return hasCategory;
         }).toList();
 
-        _filteredAllTailors = allTailors.where((tailor) {
-          bool hasCategory = tailor.categories.any((cat) {
-            bool matches = cat.categoryId == categoryId;
-            return matches;
-          });
-          return hasCategory;
-        }).toList();
+        _applyFiltersAndSort();
 
         print('=== FILTER RESULTS ===');
         print('Featured Tailors Before: ${featuredTailors.length}');
         print('Featured Tailors After: ${_filteredFeaturedTailors.length}');
-        print('All Tailors Before: ${allTailors.length}');
-        print('All Tailors After: ${_filteredAllTailors.length}');
+        print('All Tailors After Filters: ${_filteredAllTailors.length}');
 
         if (_filteredFeaturedTailors.isEmpty && _filteredAllTailors.isEmpty) {
           print('⚠️ NO MATCHES FOUND!');
@@ -440,6 +432,169 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         }
       }
     });
+  }
+
+  void _applyFiltersAndSort() {
+    List<TailorModel> tempList;
+
+    // Start with category-filtered or all tailors
+    if (_selectedCategoryId == null) {
+      tempList = List.from(allTailors);
+    } else {
+      tempList = allTailors.where((tailor) {
+        return tailor.categories.any((cat) => cat.categoryId == _selectedCategoryId);
+      }).toList();
+    }
+
+    print('=== APPLYING FILTERS ===');
+    print('Starting with ${tempList.length} tailors');
+
+    // Apply distance filter
+    if (_filterWithin5km) {
+      tempList = tempList.where((tailor) => tailor.distance < 5.0).toList();
+      print('After distance filter: ${tempList.length} tailors');
+    }
+
+    // Apply rating filter
+    if (_filterRating4Plus) {
+      tempList = tempList.where((tailor) => tailor.rating > 4.0).toList();
+      print('After rating filter: ${tempList.length} tailors');
+    }
+
+    // Apply sorting
+    if (_sortOrder != null) {
+      if (_sortOrder == 'low-high') {
+        tempList.sort((a, b) => a.startingPrice.compareTo(b.startingPrice));
+        print('Sorted by price: low to high');
+      } else if (_sortOrder == 'high-low') {
+        tempList.sort((a, b) => b.startingPrice.compareTo(a.startingPrice));
+        print('Sorted by price: high to low');
+      }
+    }
+
+    setState(() {
+      _filteredAllTailors = tempList;
+    });
+
+    print('Final filtered count: ${_filteredAllTailors.length}');
+  }
+
+  void _toggleDistanceFilter() {
+    setState(() {
+      _filterWithin5km = !_filterWithin5km;
+      _applyFiltersAndSort();
+    });
+  }
+
+  void _toggleRatingFilter() {
+    setState(() {
+      _filterRating4Plus = !_filterRating4Plus;
+      _applyFiltersAndSort();
+    });
+  }
+
+  void _showSortOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Sort By Price',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Icon(
+                  Icons.arrow_upward,
+                  color: _sortOrder == 'low-high' ? Colors.red.shade400 : Colors.grey,
+                ),
+                title: const Text('Price: Low to High'),
+                trailing: _sortOrder == 'low-high'
+                    ? Icon(Icons.check, color: Colors.red.shade400)
+                    : null,
+                onTap: () {
+                  setState(() {
+                    _sortOrder = 'low-high';
+                    _applyFiltersAndSort();
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.arrow_downward,
+                  color: _sortOrder == 'high-low' ? Colors.red.shade400 : Colors.grey,
+                ),
+                title: const Text('Price: High to Low'),
+                trailing: _sortOrder == 'high-low'
+                    ? Icon(Icons.check, color: Colors.red.shade400)
+                    : null,
+                onTap: () {
+                  setState(() {
+                    _sortOrder = 'high-low';
+                    _applyFiltersAndSort();
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              if (_sortOrder != null) ...[
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: Icon(Icons.clear, color: Colors.grey.shade600),
+                  title: Text(
+                    'Clear Sort',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _sortOrder = null;
+                      _applyFiltersAndSort();
+                    });
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _clearAllFilters() {
+    setState(() {
+      _filterWithin5km = false;
+      _filterRating4Plus = false;
+      _sortOrder = null;
+      _selectedCategoryId = null;
+      _filteredFeaturedTailors = featuredTailors;
+      _applyFiltersAndSort();
+    });
+  }
+
+  bool get _hasActiveFilters {
+    return _filterWithin5km || _filterRating4Plus || _sortOrder != null || _selectedCategoryId != null;
   }
 
   void _openDrawer() {
@@ -550,8 +705,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
             const SizedBox(height: 16),
             Text('Oops! Something went wrong', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-            // const SizedBox(height: 8),
-            // Text(_errorMessage ?? 'Unknown error', style: TextStyle(fontSize: 14, color: Colors.grey.shade600), textAlign: TextAlign.center),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _loadAllData,
@@ -580,7 +733,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Row(
         children: [
           GestureDetector(
-            // onTap: () => Navigator.pushNamed(context, '/profile-details'),
             child: Container(
               width: 50,
               height: 50,
@@ -614,8 +766,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   Row(
                     children: [
                       Text(_defaultAddress?.addressType?.toUpperCase() ?? 'No Address', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      // const SizedBox(width: 4),
-                      // Icon(Icons.keyboard_arrow_down, size: 20, color: Colors.grey.shade600),
                     ],
                   ),
                   const SizedBox(height: 2),
@@ -701,8 +851,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         contentPadding: EdgeInsets.zero,
                       ),
                       onChanged: (value) {
-                        // This triggers _onSearchChanged via the listener
-                        // Force rebuild to show/hide clear button
                         setState(() {});
                       },
                       onSubmitted: (value) {
@@ -983,7 +1131,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   height: 70,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
-                    // Fallback to icon if image fails to load
                     return Center(
                       child: Icon(
                         _getCategoryIcon(category.name),
@@ -1106,7 +1253,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildAllTailors() {
     if (_filteredAllTailors.isEmpty) {
-      if (_selectedCategoryId != null) {
+      if (_hasActiveFilters) {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: Center(
@@ -1114,12 +1261,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               children: [
                 Icon(Icons.search_off, size: 48, color: Colors.grey.shade400),
                 const SizedBox(height: 12),
-                Text('No tailors found for this category', style: TextStyle(fontSize: 15, color: Colors.grey.shade600), textAlign: TextAlign.center),
+                Text('No tailors found with current filters', style: TextStyle(fontSize: 15, color: Colors.grey.shade600), textAlign: TextAlign.center),
                 const SizedBox(height: 12),
                 OutlinedButton(
-                  onPressed: () => _filterTailorsByCategory(null),
+                  onPressed: _clearAllFilters,
                   style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade400, side: BorderSide(color: Colors.red.shade400)),
-                  child: const Text('Clear Filter'),
+                  child: const Text('Clear All Filters'),
                 ),
               ],
             ),
@@ -1145,62 +1292,96 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _selectedCategoryId != null ? Colors.red.shade50 : Colors.grey.shade100,
+                        color: _hasActiveFilters ? Colors.red.shade50 : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         '(${_filteredAllTailors.length})',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _selectedCategoryId != null ? Colors.red.shade400 : Colors.black87),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _hasActiveFilters ? Colors.red.shade400 : Colors.black87),
                       ),
                     ),
                   ],
                 ),
               ),
-              if (_selectedCategoryId != null)
-                TextButton.icon(
-                  onPressed: () => _filterTailorsByCategory(null),
-                  icon: Icon(Icons.clear, size: 16, color: Colors.red.shade400),
-                  label: Text('Clear', style: TextStyle(fontSize: 13, color: Colors.red.shade400)),
-                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: const Size(0, 32)),
-                ),
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        if (_selectedCategoryId != null)
+        const SizedBox(height: 12),
+
+        // Filter Chips Row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                // Sort Filter
+                _buildFilterChip(
+                  label: _sortOrder == null
+                      ? 'Sort By'
+                      : _sortOrder == 'low-high'
+                      ? 'Price: Low-High'
+                      : 'Price: High-Low',
+                  icon: Icons.sort,
+                  isActive: _sortOrder != null,
+                  onTap: _showSortOptions,
+                ),
+                const SizedBox(width: 8),
+
+                // Distance Filter
+                _buildFilterChip(
+                  label: 'within 5km',
+                  icon: null,
+                  isActive: _filterWithin5km,
+                  onTap: _toggleDistanceFilter,
+                ),
+                const SizedBox(width: 8),
+
+                // Rating Filter
+                _buildFilterChip(
+                  label: 'Rating > 4',
+                  icon: null,
+                  isActive: _filterRating4Plus,
+                  onTap: _toggleRatingFilter,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Active Filters Info Banner
+        if (_hasActiveFilters)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
               child: Row(
                 children: [
                   Icon(Icons.filter_alt, size: 16, color: Colors.blue.shade700),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Filtered by category', style: TextStyle(fontSize: 13, color: Colors.blue.shade700, fontWeight: FontWeight.w500))),
+                  Expanded(
+                    child: Text(
+                      _buildActiveFiltersText(),
+                      style: TextStyle(fontSize: 13, color: Colors.blue.shade700, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _clearAllFilters,
+                    child: Icon(Icons.close, size: 18, color: Colors.blue.shade700),
+                  ),
                 ],
               ),
             ),
           ),
-        const SizedBox(height: 12),
-        // Padding(
-        //   padding: const EdgeInsets.symmetric(horizontal: 16),
-        //   child: SingleChildScrollView(
-        //     scrollDirection: Axis.horizontal,
-        //     child: Row(
-        //       children: [
-        //         _buildFilterChip('Filters', Icons.filter_list),
-        //         const SizedBox(width: 8),
-        //         _buildFilterChip('Sort By', Icons.sort),
-        //         const SizedBox(width: 8),
-        //         _buildFilterChip('within 5km', null),
-        //         const SizedBox(width: 8),
-        //         _buildFilterChip('Rating > 4', null),
-        //       ],
-        //     ),
-        //   ),
-        // ),
-        // const SizedBox(height: 16),
+        if (_hasActiveFilters) const SizedBox(height: 12),
+
+        // Tailors List
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -1212,16 +1393,60 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildFilterChip(String label, IconData? icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade300)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[Icon(icon, size: 16, color: Colors.grey.shade700), const SizedBox(width: 4)],
-          Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w500)),
-        ],
+  String _buildActiveFiltersText() {
+    List<String> activeFilters = [];
+
+    if (_selectedCategoryId != null) {
+      final category = categories.firstWhere((cat) => cat.id == _selectedCategoryId);
+      activeFilters.add(category.name);
+    }
+    if (_sortOrder != null) {
+      activeFilters.add(_sortOrder == 'low-high' ? 'Price ↑' : 'Price ↓');
+    }
+    if (_filterWithin5km) {
+      activeFilters.add('< 5km');
+    }
+    if (_filterRating4Plus) {
+      activeFilters.add('Rating > 4');
+    }
+
+    return 'Filters: ${activeFilters.join(', ')}';
+  }
+
+  Widget _buildFilterChip(
+      {required String label, IconData? icon, required bool isActive, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.red.shade400 : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? Colors.red.shade400 : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 16,
+                color: isActive ? Colors.white : Colors.grey.shade700,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: isActive ? Colors.white : Colors.grey.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

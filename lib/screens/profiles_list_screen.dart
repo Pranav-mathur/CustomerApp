@@ -324,6 +324,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
             '/profile-details',
             arguments: {
               'editProfile': profile,
+              'isMainProfile': isMainProfile, // Pass the main profile flag
             },
           );
 

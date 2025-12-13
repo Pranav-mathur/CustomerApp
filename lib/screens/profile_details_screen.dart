@@ -35,6 +35,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   UserProfileModel? _existingProfile;
   bool _hasChanges = false;
   String? _selectedRelationship; // New field for relationship
+  bool _isMainProfile = false; // Flag to identify if this is the main profile
 
   // Relationship options
   final List<String> _relationships = [
@@ -90,6 +91,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             _isEditMode = true;
             _existingProfile = args['editProfile'] as UserProfileModel;
             _editingProfileId = _existingProfile!.profileId;
+            _isMainProfile = args['isMainProfile'] ?? false; // Capture the main profile flag
           });
 
           await _loadExistingProfile();
@@ -456,7 +458,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         );
       }).toList();
 
-      // Update profile with relationship (if provided)
+      // Update profile with relationship (if provided and not main profile)
       final response = await _profileService.updateProfile(
         profileId: _editingProfileId!,
         profileName: provider.profile.name!,
@@ -465,7 +467,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         imageUrl: _uploadedImageUrl,
         measurements: measurements,
         address: null, // Don't send address during update
-        relationship: _selectedRelationship, // Pass relationship (can be null)
+        relationship: _isMainProfile ? null : _selectedRelationship, // Don't send relationship for main profile
       );
 
       if (!mounted) return;
@@ -994,63 +996,66 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
                             const SizedBox(height: 24),
 
-                            // Relationship Field (Optional)
-                            const Text(
-                              'Relationship',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
+                            // Relationship Field (Optional) - Only show when:
+                            // 1. NOT in first-time user creation flow
+                            // 2. NOT editing the main profile
+                            if ((_isFromProfilesList || _isEditMode) && !_isMainProfile) ...[
+                              const Text(
+                                'Relationship',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              value: _selectedRelationship,
-                              decoration: InputDecoration(
-                                hintText: 'Select relationship',
-                                hintStyle: TextStyle(color: Colors.grey.shade400),
-                                filled: true,
-                                fillColor: Colors.grey.shade50,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Colors.red.shade300,
-                                    width: 2,
+                              const SizedBox(height: 8),
+                              DropdownButtonFormField<String>(
+                                value: _selectedRelationship,
+                                decoration: InputDecoration(
+                                  hintText: 'Select relationship',
+                                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Colors.red.shade300,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
                                   ),
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
+                                items: _relationships.map((relationship) {
+                                  return DropdownMenuItem(
+                                    value: relationship,
+                                    child: Text(relationship),
+                                  );
+                                }).toList(),
+                                onChanged: _isCreatingProfile
+                                    ? null
+                                    : (value) {
+                                  setState(() {
+                                    _selectedRelationship = value;
+                                  });
+                                  if (_isEditMode) {
+                                    _checkForChanges();
+                                  }
+                                },
+                                // No validator - making it optional
                               ),
-                              items: _relationships.map((relationship) {
-                                return DropdownMenuItem(
-                                  value: relationship,
-                                  child: Text(relationship),
-                                );
-                              }).toList(),
-                              onChanged: _isCreatingProfile
-                                  ? null
-                                  : (value) {
-                                setState(() {
-                                  _selectedRelationship = value;
-                                });
-                                if (_isEditMode) {
-                                  _checkForChanges();
-                                }
-                              },
-                              // No validator - making it optional
-                            ),
-
-                            const SizedBox(height: 24),
+                              const SizedBox(height: 24),
+                            ],
 
                             // Measurements Section
                             Consumer<ProfileProvider>(
