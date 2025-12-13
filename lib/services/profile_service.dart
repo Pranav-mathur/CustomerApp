@@ -107,6 +107,7 @@ class ProfileService {
         "email": email,
         "imageUrl": imageUrl ?? '',
         "measurements": measurementsArray,
+        "relationship" : relationship ?? '',
         // "address": {
         //   "houseFlatBlock": address?.houseFlatBlock ?? '',
         //   "apartmentRoadArea": address?.apartmentRoadArea ?? '',
