@@ -34,10 +34,10 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   String? _editingProfileId;
   UserProfileModel? _existingProfile;
   bool _hasChanges = false;
-  String? _selectedRelationship; // New field for relationship
-  bool _isMainProfile = false; // Flag to identify if this is the main profile
+  String? _selectedRelationship;
+  bool _isMainProfile = false;
+  bool _isFirstProfile = false; // NEW: Flag for first profile
 
-  // Relationship options
   final List<String> _relationships = [
     'Father',
     'Mother',
@@ -46,7 +46,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     'Spouse',
   ];
 
-  // Available measurement types
   final List<String> _allMeasurementTypes = [
     'chest',
     'waist',
@@ -65,15 +64,13 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     'other'
   ];
 
-  // Store controllers for measurement values
   final Map<int, TextEditingController> _measurementValueControllers = {};
 
-  // Store original values for comparison (using ProfileMeasurement)
   String? _originalName;
   String? _originalEmail;
   String? _originalGender;
   String? _originalImageUrl;
-  String? _originalRelationship; // New field
+  String? _originalRelationship;
   List<ProfileMeasurement>? _originalMeasurements;
 
   @override
@@ -83,30 +80,28 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final args = ModalRoute.of(context)?.settings.arguments;
 
-      // Check if we're in edit mode
       if (args != null && args is Map) {
         if (args['editProfile'] != null && args['editProfile'] is UserProfileModel) {
-          // Edit mode
           setState(() {
             _isEditMode = true;
             _existingProfile = args['editProfile'] as UserProfileModel;
             _editingProfileId = _existingProfile!.profileId;
-            _isMainProfile = args['isMainProfile'] ?? false; // Capture the main profile flag
+            _isMainProfile = args['isMainProfile'] ?? false;
           });
 
           await _loadExistingProfile();
         } else if (args['fromProfilesList'] == true) {
-          // Create new profile from profiles list
           setState(() {
             _isFromProfilesList = true;
+            _isFirstProfile = args['isFirstProfile'] ?? false; // NEW: Capture first profile flag
           });
 
           final provider = Provider.of<ProfileProvider>(context, listen: false);
           provider.clearProfileData();
           debugPrint('🔄 Cleared profile data - coming from profiles list');
+          debugPrint('📝 Is first profile: $_isFirstProfile'); // NEW: Debug log
         }
       } else {
-        // Original onboarding flow
         final provider = Provider.of<ProfileProvider>(context, listen: false);
         _nameController.text = provider.profile.name ?? '';
         _emailController.text = provider.profile.email ?? '';
@@ -119,43 +114,34 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
     final provider = Provider.of<ProfileProvider>(context, listen: false);
 
-    // Clear any existing data
     provider.clearProfileData();
 
-    // Set profile data
     _nameController.text = _existingProfile!.profileName;
-    // Email will be editable but start empty since UserProfileModel doesn't return it
     _emailController.text = '';
     _uploadedImageUrl = _existingProfile!.imageUrl;
 
-    // Load relationship if available (assuming UserProfileModel has relationship field)
-    // If not available in the model, it will remain null
-    _selectedRelationship = null; // or _existingProfile!.relationship if the field exists
+    _selectedRelationship = null;
 
-    // Store original values
     _originalName = _existingProfile!.profileName;
-    _originalEmail = ''; // Start with empty since not in fetched model
+    _originalEmail = '';
     _originalGender = _existingProfile!.gender;
     _originalImageUrl = _existingProfile!.imageUrl;
     _originalRelationship = _selectedRelationship;
     _originalMeasurements = List.from(_existingProfile!.measurements);
 
-    // Update provider
     provider.updateName(_existingProfile!.profileName);
     provider.updateEmail('');
     provider.updateGender(_existingProfile!.gender);
 
-    // Set profile image if exists
     if (_existingProfile!.imageUrl != null && _existingProfile!.imageUrl!.isNotEmpty) {
       provider.updateProfileImage(_existingProfile!.imageUrl!);
     }
 
-    // Load measurements - ProfileMeasurement has different structure
     for (var measurement in _existingProfile!.measurements) {
       final newMeasurement = MeasurementModel(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: measurement.type, // ProfileMeasurement uses 'type' instead of 'name'
-        unit: '', // Extract unit from value if needed
+        name: measurement.type,
+        unit: '',
         value: measurement.value,
       );
       provider.addMeasurement(newMeasurement);
@@ -171,21 +157,17 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
     bool changed = false;
 
-    // Check basic fields
     if (_nameController.text.trim() != _originalName) changed = true;
-    // Note: UserProfileModel doesn't have email in the fetched data
     if (provider.profile.gender != _originalGender) changed = true;
     if (_uploadedImageUrl != _originalImageUrl) changed = true;
-    if (_selectedRelationship != _originalRelationship) changed = true; // Check relationship
+    if (_selectedRelationship != _originalRelationship) changed = true;
 
-    // Check measurements
     if (_originalMeasurements != null) {
       if (provider.profile.measurements.length != _originalMeasurements!.length) {
         changed = true;
       } else {
         for (int i = 0; i < provider.profile.measurements.length; i++) {
           final current = provider.profile.measurements[i];
-          // Compare with ProfileMeasurement structure
           if (i < _originalMeasurements!.length) {
             final originalType = _originalMeasurements![i].type;
             final originalValue = _originalMeasurements![i].value;
@@ -206,7 +188,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     }
   }
 
-  // Get available measurement types (excluding already selected ones)
   List<String> _getAvailableMeasurementTypes(int currentIndex) {
     final provider = Provider.of<ProfileProvider>(context, listen: false);
     final selectedTypes = provider.profile.measurements
@@ -400,8 +381,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       return false;
     }
 
-    // Relationship is optional - no validation needed
-
     if (provider.profile.measurements.isEmpty) {
       _showErrorSnackBar('Please add at least one measurement');
       return false;
@@ -458,7 +437,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         );
       }).toList();
 
-      // Update profile with relationship (if provided and not main profile)
       final response = await _profileService.updateProfile(
         profileId: _editingProfileId!,
         profileName: provider.profile.name!,
@@ -466,8 +444,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         email: provider.profile.email!,
         imageUrl: _uploadedImageUrl,
         measurements: measurements,
-        address: null, // Don't send address during update
-        relationship: _isMainProfile ? null : _selectedRelationship, // Don't send relationship for main profile
+        address: null,
+        relationship: _isMainProfile ? null : _selectedRelationship,
       );
 
       if (!mounted) return;
@@ -542,7 +520,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         imageUrl: _uploadedImageUrl,
         measurements: measurements,
         address: null,
-        relationship: _selectedRelationship, // Pass relationship (can be null)
+        relationship: _selectedRelationship,
       );
 
       if (!mounted) return;
@@ -596,10 +574,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   void _handleSkip() {
     final provider = Provider.of<ProfileProvider>(context, listen: false);
 
-    // Clear any partial data
     provider.clearProfileData();
 
-    // Navigate to add-address screen with null profileId to indicate skip
     Navigator.pushNamed(
       context,
       '/set-location',
@@ -625,6 +601,27 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     } else {
       return 'Add New Profile';
     }
+  }
+
+  // NEW: Check if relationship field should be shown
+  bool get _shouldShowRelationshipField {
+    // Don't show in original onboarding flow
+    if (!_isFromProfilesList && !_isEditMode) {
+      return false;
+    }
+
+    // Don't show when editing main profile
+    if (_isMainProfile) {
+      return false;
+    }
+
+    // Don't show when creating first profile from profiles list
+    if (_isFirstProfile) {
+      return false;
+    }
+
+    // Show in all other cases
+    return true;
   }
 
   @override
@@ -996,10 +993,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
                             const SizedBox(height: 24),
 
-                            // Relationship Field (Optional) - Only show when:
-                            // 1. NOT in first-time user creation flow
-                            // 2. NOT editing the main profile
-                            if ((_isFromProfilesList || _isEditMode) && !_isMainProfile) ...[
+                            // Relationship Field - Conditionally shown
+                            if (_shouldShowRelationshipField) ...[
                               const Text(
                                 'Relationship',
                                 style: TextStyle(
@@ -1052,7 +1047,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                                     _checkForChanges();
                                   }
                                 },
-                                // No validator - making it optional
                               ),
                               const SizedBox(height: 24),
                             ],
@@ -1216,7 +1210,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             provider.profile.profileImagePath!.isNotEmpty;
         final hasUploadedImage = _uploadedImageUrl != null && _uploadedImageUrl!.isNotEmpty;
 
-        // For edit mode with network image
         final showNetworkImage = _isEditMode && hasUploadedImage && !hasImage;
 
         return Stack(
@@ -1446,7 +1439,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                   ),
                 ),
                 items: [
-                  // Add current selection if it exists and is not in available list
                   if (currentType != null && !availableTypes.contains(currentType))
                     DropdownMenuItem<String>(
                       value: currentType,
@@ -1455,7 +1447,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                         style: const TextStyle(fontSize: 14),
                       ),
                     ),
-                  // Add all available types
                   ...availableTypes.map((type) => DropdownMenuItem<String>(
                     value: type,
                     child: Text(
@@ -1479,7 +1470,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                     if (_isEditMode) {
                       _checkForChanges();
                     }
-                    setState(() {}); // Rebuild to update available options
+                    setState(() {});
                   }
                 },
               ),

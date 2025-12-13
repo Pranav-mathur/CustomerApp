@@ -26,12 +26,10 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
   }
 
   Future<void> _handleUnauthorizedError() async {
-    // Clear stored auth data from secure storage
     await _authService.clearSession();
 
     if (!mounted) return;
 
-    // Show a message to the user
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Session expired. Please login again.'),
@@ -40,14 +38,12 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
       ),
     );
 
-    // Small delay to show the snackbar
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
 
-    // Navigate to login page and clear navigation stack
     Navigator.of(context).pushNamedAndRemoveUntil(
-      '/login', // Replace with your actual login route
+      '/login',
           (Route<dynamic> route) => false,
     );
   }
@@ -70,7 +66,6 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      // Check if the error is a 401 (Unauthorized) error
       if (e.toString().contains('Session expired') ||
           e.toString().contains('Authentication token not found') ||
           e.toString().contains('Unauthorized')) {
@@ -226,14 +221,15 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
               SizedBox(height: screenWidth * 0.06),
               ElevatedButton.icon(
                 onPressed: () async {
-                  // Navigate to profile details with flag indicating it's from profiles list
                   final result = await Navigator.pushNamed(
                     context,
                     '/profile-details',
-                    arguments: {'fromProfilesList': true},
+                    arguments: {
+                      'fromProfilesList': true,
+                      'isFirstProfile': true, // NEW: Pass flag indicating first profile
+                    },
                   );
 
-                  // If profile was created successfully, reload the list
                   if (result == true) {
                     _loadProfiles();
                   }
@@ -281,7 +277,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
             onRefresh: _loadProfiles,
             child: ListView.builder(
               padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-              itemCount: _profiles.length + 1, // +1 for Add New Profile button
+              itemCount: _profiles.length + 1,
               itemBuilder: (context, index) {
                 if (index == _profiles.length) {
                   return _buildAddNewProfileButton();
@@ -298,7 +294,6 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
   Widget _buildProfileCard(UserProfileModel profile) {
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Determine if this is the main user profile
     final isMainProfile = profile.profileName.toLowerCase().contains('you') ||
         profile.profileName.toLowerCase().contains('admin') ||
         _profiles.indexOf(profile) == 0;
@@ -318,17 +313,15 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
       ),
       child: InkWell(
         onTap: () async {
-          // Navigate to profile edit screen
           final result = await Navigator.pushNamed(
             context,
             '/profile-details',
             arguments: {
               'editProfile': profile,
-              'isMainProfile': isMainProfile, // Pass the main profile flag
+              'isMainProfile': isMainProfile,
             },
           );
 
-          // If profile was updated successfully, reload the list
           if (result == true) {
             _loadProfiles();
           }
@@ -338,7 +331,6 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
           padding: EdgeInsets.all(screenWidth * 0.04),
           child: Row(
             children: [
-              // Profile Image
               Container(
                 width: screenWidth * 0.15,
                 height: screenWidth * 0.15,
@@ -371,7 +363,6 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
                 ),
               ),
               SizedBox(width: screenWidth * 0.04),
-              // Profile Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,7 +418,6 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
                 ),
               ),
               SizedBox(width: screenWidth * 0.02),
-              // Arrow Icon
               Icon(
                 Icons.chevron_right,
                 color: Colors.grey.shade400,
@@ -447,14 +437,15 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
       margin: EdgeInsets.only(top: screenWidth * 0.02, bottom: screenWidth * 0.06),
       child: InkWell(
         onTap: () async {
-          // Navigate to profile details with flag indicating it's from profiles list
           final result = await Navigator.pushNamed(
             context,
             '/profile-details',
-            arguments: {'fromProfilesList': true},
+            arguments: {
+              'fromProfilesList': true,
+              'isFirstProfile': false, // NEW: Not the first profile
+            },
           );
 
-          // If profile was created successfully, reload the list
           if (result == true) {
             _loadProfiles();
           }
