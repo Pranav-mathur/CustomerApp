@@ -31,6 +31,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   late BookingDataV2 bookingData;
   final AddressService _addressService = AddressService();
   final ProfileService _profileService = ProfileService();
+  final AuthService _authService = AuthService();
   final ImagePicker _picker = ImagePicker();
 
   static const String baseUrl = 'YOUR_API_BASE_URL';
@@ -48,6 +49,14 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   bool _isUploadingFabricImage = false;
   final TextEditingController _fabricNotesController = TextEditingController();
 
+  // Coupon states
+  final TextEditingController _couponController = TextEditingController();
+  bool _isApplyingCoupon = false;
+  String? _appliedCouponCode;
+  int _couponDiscount = 0; // computed discount in ₹
+  String? _couponError;
+  bool _couponAppliedSuccess = false;
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +69,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _fabricNotesController.dispose();
+    _couponController.dispose();
     super.dispose();
   }
 
@@ -190,14 +200,11 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       if (this.bookingData.selectedAddress != null) {
         final address = this.bookingData.selectedAddress!;
         bookingData['address'] = {
-          'id': address.id,
-          'label': address.label,
           'street': address.street,
           'city': address.city,
           'state': address.state,
           'pincode': address.pincode,
           'mobile': address.mobile,
-          'isDefault': address.isDefault,
         };
       }
 
@@ -381,9 +388,103 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
 
     setState(() {
       bookingData = bookingData.copyWith(
-        paymentBreakup: PaymentBreakup.calculate(totalTailoring: totalTailoring),
+        paymentBreakup: PaymentBreakup.calculate(
+          totalTailoring: totalTailoring,
+          discount: _couponDiscount,
+        ),
       );
     });
+  }
+
+  Future<void> _applyCoupon() async {
+    final code = _couponController.text.trim();
+    if (code.isEmpty) return;
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isApplyingCoupon = true;
+      _couponError = null;
+      _couponAppliedSuccess = false;
+    });
+
+    try {
+      final token = await _authService.getToken();
+      if (token == null) throw Exception('Authentication token not found');
+
+      final uri = Uri.parse('http://13.60.67.222:3000/api/v1/promo-codes/validate');
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'code': code}),
+      );
+
+      debugPrint('🎟️ Coupon response [${response.statusCode}]: ${response.body}');
+
+      if (!mounted) return;
+
+      final data = json.decode(response.body) as Map<String, dynamic>;
+
+      if (response.statusCode == 200 && data['valid'] == true) {
+        final int discountPercent = (data['discountPercentage'] as num?)?.toInt() ?? 0;
+        final int maxDiscount = (data['maxDiscount'] as num?)?.toInt() ?? 0;
+
+        // Calculate ₹ discount: % of tailoring total, capped at maxDiscount
+        final int tailoringTotal = bookingData.categories
+            .fold<int>(0, (sum, c) => sum + c.totalPrice);
+        final int calculatedDiscount = ((tailoringTotal * discountPercent) / 100).round();
+        final int finalDiscount =
+        maxDiscount > 0 && calculatedDiscount > maxDiscount
+            ? maxDiscount
+            : calculatedDiscount;
+
+        setState(() {
+          _appliedCouponCode = code;
+          _couponDiscount = finalDiscount;
+          _couponAppliedSuccess = true;
+          _isApplyingCoupon = false;
+        });
+        _recalculatePayment();
+      } else {
+        // 404 = invalid/inactive, 400 = expired or already used
+        final String errorMsg = data['message'] as String? ??
+            (response.statusCode == 404
+                ? 'Invalid or inactive promo code'
+                : response.statusCode == 400
+                ? 'Promo code has expired or already been used'
+                : 'Unable to apply promo code');
+
+        setState(() {
+          _couponError = errorMsg;
+          _couponDiscount = 0;
+          _appliedCouponCode = null;
+          _couponAppliedSuccess = false;
+          _isApplyingCoupon = false;
+        });
+        _recalculatePayment();
+      }
+    } catch (e) {
+      debugPrint('❌ Coupon apply error: $e');
+      if (!mounted) return;
+      setState(() {
+        _couponError = 'Unable to validate coupon. Please try again.';
+        _isApplyingCoupon = false;
+      });
+    }
+  }
+
+  void _removeCoupon() {
+    setState(() {
+      _appliedCouponCode = null;
+      _couponDiscount = 0;
+      _couponError = null;
+      _couponAppliedSuccess = false;
+      _couponController.clear();
+    });
+    _recalculatePayment();
   }
 
   void _updateDateTime(String date, String time) {
@@ -711,6 +812,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => TimeSlotPicker(
+        tailorId: bookingData.tailorId,
         initialDate: bookingData.pickupDate,
         initialTime: bookingData.pickupTime,
         onConfirm: (date, time) {
@@ -805,6 +907,9 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
                       SizedBox(height: screenWidth * 0.06),
                       _buildSectionTitle('Pickup Location'),
                       _buildPickupLocationCard(),
+                      SizedBox(height: screenWidth * 0.06),
+                      _buildSectionTitle('Promo Code'),
+                      _buildCouponSection(),
                       SizedBox(height: screenWidth * 0.06),
                       _buildSectionTitle('Payment Breakup'),
                       _buildPaymentBreakup(),
@@ -1324,6 +1429,176 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
     );
   }
 
+  Widget _buildCouponSection() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: EdgeInsets.all(screenWidth * 0.04),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Input row
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _couponController,
+                  enabled: !_isApplyingCoupon && _appliedCouponCode == null,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (_) {
+                    if (_couponError != null || _couponAppliedSuccess) {
+                      setState(() {
+                        _couponError = null;
+                        _couponAppliedSuccess = false;
+                      });
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Enter promo code',
+                    hintStyle: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: screenWidth * 0.038),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    contentPadding: EdgeInsets.symmetric(
+                        horizontal: screenWidth * 0.04,
+                        vertical: screenWidth * 0.035),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: _couponAppliedSuccess
+                            ? Colors.green.shade400
+                            : _couponError != null
+                            ? Colors.red.shade300
+                            : Colors.grey.shade200,
+                        width: 1.5,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: Colors.red.shade300, width: 1.5),
+                    ),
+                    suffixIcon: _appliedCouponCode != null
+                        ? Icon(Icons.check_circle,
+                        color: Colors.green.shade500, size: 20)
+                        : null,
+                  ),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.038,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                    color: _appliedCouponCode != null
+                        ? Colors.green.shade700
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+              SizedBox(width: screenWidth * 0.03),
+              // Apply / Remove button
+              _appliedCouponCode != null
+                  ? GestureDetector(
+                onTap: _removeCoupon,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth * 0.04,
+                      vertical: screenWidth * 0.035),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: Colors.red.shade300, width: 1.5),
+                  ),
+                  child: Text(
+                    'Remove',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.036,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red.shade400,
+                    ),
+                  ),
+                ),
+              )
+                  : GestureDetector(
+                onTap: _isApplyingCoupon ? null : _applyCoupon,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth * 0.04,
+                      vertical: screenWidth * 0.035),
+                  decoration: BoxDecoration(
+                    color: _isApplyingCoupon
+                        ? Colors.grey.shade100
+                        : Colors.red.shade400,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: _isApplyingCoupon
+                      ? SizedBox(
+                    width: screenWidth * 0.04,
+                    height: screenWidth * 0.04,
+                    child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white),
+                  )
+                      : Text(
+                    'Apply',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.036,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Feedback messages
+          if (_couponError != null) ...[
+            SizedBox(height: screenWidth * 0.02),
+            Row(
+              children: [
+                Icon(Icons.cancel_outlined,
+                    size: 14, color: Colors.red.shade400),
+                SizedBox(width: screenWidth * 0.015),
+                Text(
+                  _couponError!,
+                  style: TextStyle(
+                      fontSize: screenWidth * 0.033,
+                      color: Colors.red.shade400),
+                ),
+              ],
+            ),
+          ] else if (_couponAppliedSuccess && _appliedCouponCode != null) ...[
+            SizedBox(height: screenWidth * 0.02),
+            Row(
+              children: [
+                Icon(Icons.check_circle_outline,
+                    size: 14, color: Colors.green.shade600),
+                SizedBox(width: screenWidth * 0.015),
+                Text(
+                  'Saving ₹$_couponDiscount on this order!',
+                  style: TextStyle(
+                      fontSize: screenWidth * 0.033,
+                      color: Colors.green.shade600,
+                      fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildPaymentBreakup() {
     final screenWidth = MediaQuery.of(context).size.width;
     final breakup = bookingData.paymentBreakup;
@@ -1346,7 +1621,9 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
             if (breakup.discount > 0) ...[
               SizedBox(height: screenWidth * 0.03),
               _buildBreakupRow(
-                'Discount',
+                _appliedCouponCode != null
+                    ? 'Discount (${_appliedCouponCode!})'
+                    : 'Discount',
                 '-₹${breakup.discount}',
                 isDiscount: true,
               ),
@@ -1777,7 +2054,11 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
     });
 
     try {
-      final bookingRequest = bookingData.toBookingRequest(context);
+      final bookingRequest = bookingData.toBookingRequest(
+        context,
+        promoCode: _appliedCouponCode,
+        totalAmount: bookingData.paymentBreakup.totalAmount,
+      );
       final requestJson = bookingRequest.toJson();
 
       if (_fabricReferenceImages.isNotEmpty) {

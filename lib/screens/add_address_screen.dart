@@ -39,6 +39,12 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   bool _hasLocationData = false;
   bool _isFromOnboardingFlow = false; // Track if coming from onboarding
 
+  // Pincode serviceability
+  bool _isPincodeServiceable = true; // default true until checked
+  bool _isPincodeChecking = false;
+  String? _pincodeServiceabilityMessage;
+  String? _lastCheckedPincode; // avoid duplicate calls
+
   // Store original values to detect changes
   String? _originalStreet;
   String? _originalCity;
@@ -57,6 +63,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     _cityController.addListener(_checkForChanges);
     _stateController.addListener(_checkForChanges);
     _pincodeController.addListener(_checkForChanges);
+    _pincodeController.addListener(_onPincodeChanged);
     _mobileController.addListener(_checkForChanges);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -124,6 +131,63 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     });
   }
 
+  void _onPincodeChanged() {
+    final pincode = _pincodeController.text.trim();
+
+    // Reset serviceability state when pincode changes
+    if (pincode.length != 6) {
+      if (_pincodeServiceabilityMessage != null || !_isPincodeServiceable) {
+        setState(() {
+          _isPincodeServiceable = true;
+          _pincodeServiceabilityMessage = null;
+          _lastCheckedPincode = null;
+        });
+      }
+      return;
+    }
+
+    // Avoid duplicate API calls for same pincode
+    if (pincode == _lastCheckedPincode) return;
+
+    _checkPincodeServiceability(pincode);
+  }
+
+  Future<void> _checkPincodeServiceability(String pincode) async {
+    setState(() {
+      _isPincodeChecking = true;
+      _pincodeServiceabilityMessage = null;
+      _lastCheckedPincode = pincode;
+    });
+
+    try {
+      final result = await _addressService.checkPincode(pincode);
+
+      if (!mounted) return;
+
+      // Verify pincode hasn't changed since the call was made
+      if (_pincodeController.text.trim() != pincode) return;
+
+      setState(() {
+        _isPincodeServiceable = result['serviceable'] == true;
+        _pincodeServiceabilityMessage =
+        _isPincodeServiceable ? null : (result['message'] as String?);
+        _isPincodeChecking = false;
+      });
+
+      debugPrint(_isPincodeServiceable
+          ? '✅ Pincode $pincode is serviceable'
+          : '❌ Pincode $pincode is NOT serviceable: $_pincodeServiceabilityMessage');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isPincodeChecking = false;
+        // On error, don't block the user — default to serviceable
+        _isPincodeServiceable = true;
+        _pincodeServiceabilityMessage = null;
+      });
+    }
+  }
+
   void _populateFieldsFromLocation() {
     if (_locationData == null) return;
 
@@ -141,6 +205,12 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       _stateController.text = _locationData!['state'] ?? '';
       _pincodeController.text = _locationData!['postalCode'] ?? '';
     });
+
+    // Check serviceability for auto-populated pincode
+    final pincode = _locationData!['postalCode'] ?? '';
+    if (pincode.length == 6) {
+      _checkPincodeServiceability(pincode);
+    }
 
     debugPrint('✅ Auto-populated address fields from location data');
   }
@@ -262,6 +332,12 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
     if (_selectedAddressType == null) {
       _showErrorSnackBar('Please select address type');
+      return;
+    }
+
+    // Block save if pincode is not serviceable
+    if (!_isPincodeServiceable) {
+      _showErrorSnackBar('This pincode is not serviceable. Please enter a different pincode.');
       return;
     }
 
@@ -613,25 +689,99 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                           // Pincode Field
                           _buildFieldLabel('Pincode'),
                           const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _pincodeController,
-                            enabled: !_isLoading,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(6),
-                            ],
-                            decoration: _buildInputDecoration('Enter 6-digit pincode'),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Please enter pincode';
-                              }
-                              if (value.trim().length != 6) {
-                                return 'Pincode must be 6 digits';
-                              }
-                              return null;
-                            },
+                          Container(
+                            decoration: BoxDecoration(
+                              color: (!_isPincodeServiceable &&
+                                  _pincodeController.text.length == 6)
+                                  ? Colors.red.shade50
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: TextFormField(
+                              controller: _pincodeController,
+                              enabled: !_isLoading,
+                              keyboardType: TextInputType.number,
+                              autovalidateMode: AutovalidateMode.onUserInteraction,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(6),
+                              ],
+                              decoration: _buildPincodeDecoration(),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please enter pincode';
+                                }
+                                if (value.trim().length != 6) {
+                                  return 'Pincode must be 6 digits';
+                                }
+                                return null;
+                              },
+                            ),
                           ),
+                          // Pincode serviceability feedback
+                          if (_pincodeController.text.length == 6) ...[
+                            if (_isPincodeChecking) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.5,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Checking serviceability...',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else if (_isPincodeServiceable) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_outline,
+                                    size: 14,
+                                    color: Colors.green.shade600,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'This pincode is serviceable',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.green.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.cancel_outlined,
+                                    size: 14,
+                                    color: Colors.red.shade400,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'This pincode is not serviceable',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.red.shade400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
 
                           const SizedBox(height: 24),
 
@@ -763,7 +913,10 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: (_isLoading || (_isEditMode && !_hasChanges))
+                        onPressed: (_isLoading ||
+                            (_isEditMode && !_hasChanges) ||
+                            !_isPincodeServiceable ||
+                            _isPincodeChecking)
                             ? null
                             : _saveAddress,
                         style: ElevatedButton.styleFrom(
@@ -835,6 +988,58 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  InputDecoration _buildPincodeDecoration() {
+    final isNotServiceable =
+        !_isPincodeServiceable && _pincodeController.text.length == 6;
+    return InputDecoration(
+      hintText: 'Enter 6-digit pincode',
+      hintStyle: TextStyle(color: Colors.grey.shade400),
+      filled: true,
+      fillColor: isNotServiceable ? Colors.red.shade50 : Colors.grey.shade50,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: isNotServiceable
+            ? BorderSide(color: Colors.red.shade300, width: 1.5)
+            : BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: isNotServiceable ? Colors.red.shade400 : Colors.red.shade300,
+          width: 2,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      suffixIcon: isNotServiceable
+          ? Icon(Icons.location_off, color: Colors.red.shade400, size: 20)
+          : (_isPincodeChecking && _pincodeController.text.length == 6)
+          ? Padding(
+        padding: const EdgeInsets.all(14),
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.grey.shade400,
+          ),
+        ),
+      )
+          : null,
     );
   }
 

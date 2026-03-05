@@ -1136,6 +1136,7 @@ class _TailorDetailScreenState extends State<TailorDetailScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => TimeSlotPicker(
+        tailorId: widget.tailorId,
         initialDate: selectedDate,
         initialTime: selectedTime,
         onConfirm: (date, time) {

@@ -2,16 +2,19 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../services/tailor_service.dart';
 
 class TimeSlotPicker extends StatefulWidget {
   final String? initialDate;
   final String? initialTime;
+  final String tailorId; // Required to fetch availability from API
   final Function(String date, String time) onConfirm;
 
   const TimeSlotPicker({
     Key? key,
     this.initialDate,
     this.initialTime,
+    required this.tailorId,
     required this.onConfirm,
   }) : super(key: key);
 
@@ -25,146 +28,159 @@ class _TimeSlotPickerState extends State<TimeSlotPicker> {
   List<DateOption> availableDates = [];
   Map<String, List<TimeSlot>> timeSlots = {};
 
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  final TailorService _tailorService = TailorService();
+
   @override
   void initState() {
     super.initState();
-    _generateAvailableDates();
-    _generateTimeSlots();
+    _fetchAvailability();
+  }
 
-    // Set initial selections
-    if (widget.initialDate != null && widget.initialTime != null) {
-      selectedDate = _findMatchingDateValue(widget.initialDate!);
-      selectedTime = widget.initialTime;
-    } else {
-      // NEW: Set default to today and first available time slot
-      if (availableDates.isNotEmpty) {
-        selectedDate = availableDates[0].value;
+  // ── API fetch & parse ─────────────────────────────────────────────────────
 
-        // Get first available time slot for today
-        final todaySlots = timeSlots[selectedDate] ?? [];
-        final firstAvailableSlot = todaySlots.firstWhere(
-              (slot) => slot.isAvailable,
-          orElse: () => todaySlots.isNotEmpty ? todaySlots[0] : TimeSlot(time: '', period: '', isAvailable: false),
-        );
+  Future<void> _fetchAvailability() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-        if (firstAvailableSlot.time.isNotEmpty) {
-          selectedTime = firstAvailableSlot.time;
-        }
+    try {
+      final data = await _tailorService.getTailorAvailability(widget.tailorId);
+      _parseAvailability(data);
+    } catch (e) {
+      debugPrint('❌ TimeSlotPicker fetch error: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Unable to load available slots. Please try again.';
+        });
       }
     }
   }
 
-  String? _findMatchingDateValue(String dateLabel) {
-    // Try to find exact match first
-    for (var dateOption in availableDates) {
-      if (dateOption.label == dateLabel) {
-        return dateOption.value;
-      }
-    }
+  void _parseAvailability(Map<String, dynamic> data) {
+    final List<dynamic> availability = data['availability'] ?? [];
 
-    // If not found, return today's value
-    return availableDates.isNotEmpty ? availableDates[0].value : null;
-  }
+    final List<DateOption> dates = [];
+    final Map<String, List<TimeSlot>> slots = {};
 
-  void _generateAvailableDates() {
-    final now = DateTime.now();
+    final String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    for (int i = 0; i < 7; i++) {
-      final date = now.add(Duration(days: i));
-      String label;
+    for (final dayEntry in availability) {
+      final String dateStr = dayEntry['date'] ?? '';
+      final String apiDayLabel = dayEntry['day'] ?? dateStr;
+      final List<dynamic> rawSlots = dayEntry['slots'] ?? [];
 
-      if (i == 0) {
-        label = 'Today, ${DateFormat('EEE').format(date)}';
-      } else if (i == 1) {
-        label = 'Tomorrow, ${DateFormat('EEE').format(date)}';
-      } else {
-        label = DateFormat('EEE, d MMM').format(date);
-      }
+      if (dateStr.isEmpty) continue;
 
-      availableDates.add(DateOption(
-        label: label,
-        date: date,
-        value: DateFormat('yyyy-MM-dd').format(date),
+      dates.add(DateOption(
+        label: _buildDateLabel(dateStr, todayStr, apiDayLabel),
+        value: dateStr,
+        date: DateTime.tryParse(dateStr) ?? DateTime.now(),
       ));
+
+      slots[dateStr] = rawSlots
+          .map(_apiSlotToTimeSlot)
+          .where((s) => s != null)
+          .cast<TimeSlot>()
+          .toList();
     }
 
-    // Select first date by default if no initial date
-    if (selectedDate == null && availableDates.isNotEmpty) {
-      selectedDate = availableDates[0].value;
+    if (!mounted) return;
+
+    setState(() {
+      availableDates = dates;
+      timeSlots = slots;
+      _isLoading = false;
+    });
+
+    _applyInitialSelection();
+  }
+
+  TimeSlot? _apiSlotToTimeSlot(dynamic s) {
+    final String time = s['time'] ?? '';
+    final int hour = (s['hour'] as num?)?.toInt() ?? -1;
+    final String status = s['status'] ?? 'unavailable';
+
+    if (time.isEmpty) return null;
+
+    // Exclude hours 0–4 (midnight to early morning) — not shown in the picker
+    if (hour >= 0 && hour < 5) return null;
+
+    return TimeSlot(
+      time: time,
+      period: _periodForHour(hour),
+      isAvailable: status == 'available',
+    );
+  }
+
+  /// Maps hour (5–23) to period sections in chronological order:
+  /// Morning: 5 AM – 11 AM, Afternoon: 12 PM – 5 PM, Evening: 6 PM – 11 PM
+  String _periodForHour(int hour) {
+    if (hour >= 5 && hour < 12) return 'Morning';
+    if (hour >= 12 && hour < 18) return 'After noon';
+    return 'Evening'; // 18–23
+  }
+
+  /// Produces human-readable labels identical to the original local generator.
+  String _buildDateLabel(String dateStr, String todayStr, String apiDayLabel) {
+    try {
+      final date = DateTime.parse(dateStr);
+      final today = DateTime.parse(todayStr);
+      final diff = date.difference(today).inDays;
+
+      if (diff == 0) return 'Today, ${DateFormat('EEE').format(date)}';
+      if (diff == 1) return 'Tomorrow, ${DateFormat('EEE').format(date)}';
+      return DateFormat('EEE, d MMM').format(date);
+    } catch (_) {
+      return apiDayLabel;
     }
   }
 
-  void _generateTimeSlots() {
-    // Generate time slots for all dates
-    for (var dateOption in availableDates) {
-      timeSlots[dateOption.value] = _generateSlotsForDate(dateOption.date);
+  void _applyInitialSelection() {
+    if (availableDates.isEmpty) return;
+
+    if (widget.initialDate != null && widget.initialTime != null) {
+      final match = availableDates.firstWhere(
+            (d) => d.label == widget.initialDate,
+        orElse: () => availableDates[0],
+      );
+      setState(() {
+        selectedDate = match.value;
+        selectedTime = widget.initialTime;
+      });
+    } else {
+      final firstDate = availableDates[0];
+      final firstSlots = timeSlots[firstDate.value] ?? [];
+      final firstAvailable = firstSlots.firstWhere(
+            (s) => s.isAvailable,
+        orElse: () => TimeSlot(time: '', period: 'Morning', isAvailable: false),
+      );
+      setState(() {
+        selectedDate = firstDate.value;
+        selectedTime =
+        firstAvailable.time.isNotEmpty ? firstAvailable.time : null;
+      });
     }
   }
 
-  List<TimeSlot> _generateSlotsForDate(DateTime date) {
-    List<TimeSlot> slots = [];
-    final now = DateTime.now();
-    final isToday = DateFormat('yyyy-MM-dd').format(date) ==
-        DateFormat('yyyy-MM-dd').format(now);
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-    // Morning slots: 10:00 AM - 11:30 AM
-    for (int hour = 10; hour <= 11; hour++) {
-      for (int minute = 0; minute < 60; minute += 30) {
-        if (hour == 11 && minute == 30) continue; // Stop at 11:30 AM
-
-        final time = DateTime(date.year, date.month, date.day, hour, minute);
-        final isAvailable = !isToday || time.isAfter(now.add(Duration(hours: 1)));
-
-        slots.add(TimeSlot(
-          time: DateFormat('h:mm a').format(time),
-          period: 'Morning',
-          isAvailable: isAvailable,
-        ));
-      }
-    }
-
-    // Afternoon slots: 12:00 PM - 5:30 PM
-    for (int hour = 12; hour <= 17; hour++) {
-      for (int minute = 0; minute < 60; minute += 30) {
-        if (hour == 17 && minute == 30) continue; // Stop at 5:00 PM
-
-        final time = DateTime(date.year, date.month, date.day, hour, minute);
-        final isAvailable = !isToday || time.isAfter(now.add(Duration(hours: 1)));
-
-        slots.add(TimeSlot(
-          time: DateFormat('h:mm a').format(time),
-          period: 'After noon',
-          isAvailable: isAvailable,
-        ));
-      }
-    }
-
-    // Evening slots: 6:00 PM - 8:00 PM
-    for (int hour = 18; hour <= 20; hour++) {
-      for (int minute = 0; minute < 60; minute += 30) {
-        if (hour == 20 && minute == 30) continue; // Stop at 8:00 PM
-
-        final time = DateTime(date.year, date.month, date.day, hour, minute);
-        final isAvailable = !isToday || time.isAfter(now.add(Duration(hours: 1)));
-
-        slots.add(TimeSlot(
-          time: DateFormat('h:mm a').format(time),
-          period: 'Evening',
-          isAvailable: isAvailable,
-        ));
-      }
-    }
-
-    return slots;
+  String _getSelectedDateLabel() {
+    final dateOption = availableDates.firstWhere(
+          (d) => d.value == selectedDate,
+      orElse: () => availableDates[0],
+    );
+    return dateOption.label;
   }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final selectedSlots = timeSlots[selectedDate] ?? [];
-    final morningSlots = selectedSlots.where((s) => s.period == 'Morning').toList();
-    final afternoonSlots = selectedSlots.where((s) => s.period == 'After noon').toList();
-    final eveningSlots = selectedSlots.where((s) => s.period == 'Evening').toList();
-
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(
@@ -177,9 +193,8 @@ class _TimeSlotPickerState extends State<TimeSlotPicker> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: Colors.grey.shade200),
-              ),
+              border:
+              Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Row(
               children: [
@@ -203,222 +218,163 @@ class _TimeSlotPickerState extends State<TimeSlotPicker> {
           ),
 
           // Main content
-          Expanded(
-            child: Row(
+          Expanded(child: _buildBody(context)),
+
+          // Footer
+          _buildFooter(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.redAccent),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style:
+                TextStyle(fontSize: 15, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _fetchAvailability,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade400,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Retry',
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (availableDates.isEmpty) {
+      return Center(
+        child: Text(
+          'No slots available at the moment.',
+          style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
+        ),
+      );
+    }
+
+    final selectedSlots = timeSlots[selectedDate] ?? [];
+    final morningSlots =
+    selectedSlots.where((s) => s.period == 'Morning').toList();
+    final afternoonSlots =
+    selectedSlots.where((s) => s.period == 'After noon').toList();
+    final eveningSlots =
+    selectedSlots.where((s) => s.period == 'Evening').toList();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Date selector (left panel)
+        Container(
+          width: MediaQuery.of(context).size.width * 0.35,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            border:
+            Border(right: BorderSide(color: Colors.grey.shade200)),
+          ),
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            itemCount: availableDates.length,
+            itemBuilder: (context, index) {
+              final dateOption = availableDates[index];
+              final isSelected = selectedDate == dateOption.value;
+
+              return InkWell(
+                onTap: () =>
+                    setState(() => selectedDate = dateOption.value),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 20),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white : Colors.transparent,
+                    border: Border(
+                      left: BorderSide(
+                        color: isSelected
+                            ? Colors.red.shade400
+                            : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    dateOption.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? Colors.red.shade400
+                          : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Time slots (right panel)
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Date selector (Left side)
-                Container(
-                  width: MediaQuery.of(context).size.width * 0.35,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    border: Border(
-                      right: BorderSide(color: Colors.grey.shade200),
-                    ),
-                  ),
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    itemCount: availableDates.length,
-                    itemBuilder: (context, index) {
-                      final dateOption = availableDates[index];
-                      final isSelected = selectedDate == dateOption.value;
-
-                      return InkWell(
-                        onTap: () {
-                          setState(() {
-                            selectedDate = dateOption.value;
-                            // Don't clear time selection when changing date
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 20,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected ? Colors.white : Colors.transparent,
-                            border: Border(
-                              left: BorderSide(
-                                color: isSelected
-                                    ? Colors.red.shade400
-                                    : Colors.transparent,
-                                width: 3,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            dateOption.label,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected
-                                  ? Colors.red.shade400
-                                  : Colors.grey.shade700,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                // Time slots (Right side)
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Morning slots
-                        if (morningSlots.isNotEmpty) ...[
-                          Text(
-                            'Morning',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildTimeSlotGrid(morningSlots),
-                          const SizedBox(height: 24),
-                        ],
-
-                        // Afternoon slots
-                        if (afternoonSlots.isNotEmpty) ...[
-                          Text(
-                            'After noon',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildTimeSlotGrid(afternoonSlots),
-                          const SizedBox(height: 24),
-                        ],
-
-                        // Evening slots
-                        if (eveningSlots.isNotEmpty) ...[
-                          Text(
-                            'Evening',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildTimeSlotGrid(eveningSlots),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Footer with selected info and confirm button
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (selectedDate != null && selectedTime != null) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 16,
-                            color: Colors.grey.shade700,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _getSelectedDateLabel(),
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Icon(
-                            Icons.access_time,
-                            size: 16,
-                            color: Colors.grey.shade700,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            selectedTime!,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: selectedDate != null && selectedTime != null
-                          ? () {
-                        widget.onConfirm(
-                          _getSelectedDateLabel(),
-                          selectedTime!,
-                        );
-                        Navigator.pop(context);
-                      }
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade400,
-                        disabledBackgroundColor: Colors.grey.shade300,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Confirm Slot',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
+                if (morningSlots.isNotEmpty) ...[
+                  _buildPeriodLabel('Morning'),
+                  const SizedBox(height: 12),
+                  _buildTimeSlotGrid(morningSlots),
+                  const SizedBox(height: 24),
                 ],
-              ),
+                if (afternoonSlots.isNotEmpty) ...[
+                  _buildPeriodLabel('After noon'),
+                  const SizedBox(height: 12),
+                  _buildTimeSlotGrid(afternoonSlots),
+                  const SizedBox(height: 24),
+                ],
+                if (eveningSlots.isNotEmpty) ...[
+                  _buildPeriodLabel('Evening'),
+                  const SizedBox(height: 12),
+                  _buildTimeSlotGrid(eveningSlots),
+                ],
+              ],
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPeriodLabel(String label) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey.shade600,
       ),
     );
   }
@@ -432,17 +388,11 @@ class _TimeSlotPickerState extends State<TimeSlotPicker> {
 
         return InkWell(
           onTap: slot.isAvailable
-              ? () {
-            setState(() {
-              selectedTime = slot.time;
-            });
-          }
+              ? () => setState(() => selectedTime = slot.time)
               : null,
           child: Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 10,
-            ),
+                horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: !slot.isAvailable
                   ? Colors.grey.shade100
@@ -462,7 +412,8 @@ class _TimeSlotPickerState extends State<TimeSlotPicker> {
               slot.time,
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontWeight:
+                isSelected ? FontWeight.bold : FontWeight.w500,
                 color: !slot.isAvailable
                     ? Colors.grey.shade400
                     : isSelected
@@ -476,14 +427,100 @@ class _TimeSlotPickerState extends State<TimeSlotPicker> {
     );
   }
 
-  String _getSelectedDateLabel() {
-    final dateOption = availableDates.firstWhere(
-          (d) => d.value == selectedDate,
-      orElse: () => availableDates[0],
+  Widget _buildFooter(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selectedDate != null && selectedTime != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.calendar_today,
+                        size: 16, color: Colors.grey.shade700),
+                    const SizedBox(width: 8),
+                    Text(
+                      _getSelectedDateLabel(),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(Icons.access_time,
+                        size: 16, color: Colors.grey.shade700),
+                    const SizedBox(width: 8),
+                    Text(
+                      selectedTime!,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: selectedDate != null && selectedTime != null
+                    ? () {
+                  widget.onConfirm(
+                    _getSelectedDateLabel(),
+                    selectedTime!,
+                  );
+                  Navigator.pop(context);
+                }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade400,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Confirm Slot',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-    return dateOption.label;
   }
 }
+
+// ── Data models (interface unchanged) ─────────────────────────────────────────
 
 class DateOption {
   final String label;

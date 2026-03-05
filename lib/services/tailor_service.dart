@@ -9,6 +9,29 @@ class TailorService {
   // Replace with your actual API base URL
   static const String baseUrl = 'http://100.27.221.127:3000/api/v1';
 
+  Future<Map<String, dynamic>> getTailorAvailability(String tailorId) async {
+    try {
+      final url = Uri.parse('http://13.60.67.222:3000/api/v1/tailor/$tailorId/availability');
+      debugPrint('📅 Fetching availability: $url');
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      debugPrint('📅 Availability Response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Failed to load availability: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching tailor availability: $e');
+      rethrow;
+    }
+  }
+
   Future<TailorDetail> getTailorDetail(String tailorId) async {
     try {
       final url = Uri.parse('$baseUrl/tailor/details/$tailorId');

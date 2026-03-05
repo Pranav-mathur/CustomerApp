@@ -152,6 +152,33 @@ class AddressService {
     }
   }
 
+  // Check if pincode is serviceable (Public, no auth)
+  Future<Map<String, dynamic>> checkPincode(String pincode) async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://13.60.67.222:3000/api/v1/check-pincode/$pincode'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      debugPrint('📮 Check Pincode Response: ${response.statusCode}');
+      debugPrint('📮 Check Pincode Body: ${response.body}');
+
+      final data = json.decode(response.body);
+      return {
+        'serviceable': data['serviceable'] ?? false,
+        'message': data['message'] ?? 'Unable to verify pincode',
+        'city': data['city'],
+        'state': data['state'],
+      };
+    } catch (e) {
+      debugPrint('❌ Error in checkPincode: $e');
+      return {
+        'serviceable': false,
+        'message': 'Unable to verify pincode. Please try again.',
+      };
+    }
+  }
+
   // Delete address (if needed in future)
   Future<bool> deleteAddress(String addressId) async {
     try {

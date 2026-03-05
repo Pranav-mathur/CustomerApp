@@ -56,7 +56,10 @@ class BookingDataV2 {
 
   // Convert to API format
   // ⭐ UPDATED: Now requires BuildContext to get global profile ID
-  BookingRequest toBookingRequest(BuildContext context) {
+  BookingRequest toBookingRequest(BuildContext context, {
+    String? promoCode,
+    int? totalAmount,
+  }) {
     if (selectedAddress == null) {
       throw Exception('Address must be selected before creating booking request');
     }
@@ -76,6 +79,8 @@ class BookingDataV2 {
         quantity: cat.quantity,
       )).toList(),
       referenceImages: _getReferencesWithImages(),
+      promoCode: promoCode,
+      totalAmount: totalAmount,
     );
   }
 
@@ -107,17 +112,14 @@ class PaymentBreakup {
     double taxRate = 0.05,
     int discount = 0,
   }) {
-    // Remove discount from total first
-    final amountAfterDiscount = totalTailoring - discount;
-
-    // The tailoring cost before tax and pickup fee
+    // Back-calculate pre-tax tailoring base from the gross total
     final tailoringBase =
-    ((amountAfterDiscount - pickupFee) / (1 + taxRate)).round();
+    ((totalTailoring - pickupFee) / (1 + taxRate)).round();
 
-    // Calculate actual tax portion
+    // Tax on the tailoring base
     final tax = (tailoringBase * taxRate).round();
 
-    // Sanity check: recompute total (should roughly match totalTailoring)
+    // Discount applied once to the final total only
     final totalAmount = tailoringBase + pickupFee + tax - discount;
 
     return PaymentBreakup(

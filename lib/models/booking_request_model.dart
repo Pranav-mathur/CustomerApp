@@ -6,6 +6,8 @@ class BookingRequest {
   final String requestedDateTime;
   final List<BookingCategory> categories;
   final List<String>? referenceImages;
+  final String? promoCode;
+  final int? totalAmount;
 
   BookingRequest({
     required this.profileId,
@@ -13,6 +15,8 @@ class BookingRequest {
     required this.requestedDateTime,
     required this.categories,
     this.referenceImages,
+    this.promoCode,
+    this.totalAmount,
   });
 
   Map<String, dynamic> toJson() {
@@ -23,6 +27,10 @@ class BookingRequest {
       'categories': categories.map((c) => c.toJson()).toList(),
       if (referenceImages != null && referenceImages!.isNotEmpty)
         'referenceImages': referenceImages,
+      if (promoCode != null && promoCode!.isNotEmpty)
+        'promoCode': promoCode,
+      if (totalAmount != null)
+        'totalAmount': totalAmount,
     };
   }
 }
