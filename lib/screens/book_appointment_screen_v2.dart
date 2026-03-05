@@ -185,7 +185,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
 
   Future<Map<String, dynamic>?> _createBookingAPI(Map<String, dynamic> bookingData) async {
     try {
-      const String apiUrl = 'http://100.27.221.127:3000/api/v1/bookings';
+      const String apiUrl = 'http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1/bookings';
       final AuthService authService = AuthService();
       final token = await authService.getToken();
 
@@ -412,7 +412,7 @@ class _BookAppointmentScreenV2State extends State<BookAppointmentScreenV2> with 
       final token = await _authService.getToken();
       if (token == null) throw Exception('Authentication token not found');
 
-      final uri = Uri.parse('http://13.60.67.222:3000/api/v1/promo-codes/validate');
+      final uri = Uri.parse('http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1/promo-codes/validate');
       final response = await http.post(
         uri,
         headers: {

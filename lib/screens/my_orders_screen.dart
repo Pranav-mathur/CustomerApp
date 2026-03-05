@@ -37,7 +37,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
     try {
       // final authProvider = Provider.of<AuthProvider>(context, listen: false);
       // Replace with your actual API URL and token
-      const String apiUrl = 'http://100.27.221.127:3000/api/v1/bookings';
+      const String apiUrl = 'http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1/bookings';
       final AuthService _authService = AuthService();// Get this from your auth service
       final token = await _authService.getToken();
 

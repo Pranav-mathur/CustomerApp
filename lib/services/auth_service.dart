@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
-  final String baseUrl = "http://100.27.221.127:3000/api/v1";
+  final String baseUrl = "http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1";
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   // Storage keys

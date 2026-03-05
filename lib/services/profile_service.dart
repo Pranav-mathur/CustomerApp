@@ -10,7 +10,7 @@ import '../models/user_profile_model.dart';
 import 'auth_service.dart';
 
 class ProfileService {
-  final String baseUrl = "http://100.27.221.127:3000/api/v1";
+  final String baseUrl = "http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1";
   final AuthService _authService = AuthService();
 
   Future<String> uploadProfileImage(File file) async {

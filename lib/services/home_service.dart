@@ -6,8 +6,8 @@ import 'package:flutter/foundation.dart';
 
 class HomeService {
   // Replace with your actual API base URL
-  static const String baseUrl = 'http://100.27.221.127:3000/api/v1';
-  // final String baseUrl = "http://100.27.221.127:3000/api/v1";
+  static const String baseUrl = 'http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1';
+  // final String baseUrl = "http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1";
 
   // Singleton pattern
   static final HomeService _instance = HomeService._internal();

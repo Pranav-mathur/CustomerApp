@@ -7,7 +7,7 @@ import '../models/address_model.dart';
 import 'auth_service.dart';
 
 class AddressService {
-  final String baseUrl = "http://100.27.221.127:3000/api/v1";
+  final String baseUrl = "http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1";
   final AuthService _authService = AuthService();
 
   Future<Map<String, String>> _getHeaders() async {
@@ -156,7 +156,7 @@ class AddressService {
   Future<Map<String, dynamic>> checkPincode(String pincode) async {
     try {
       final response = await http.get(
-        Uri.parse('http://13.60.67.222:3000/api/v1/check-pincode/$pincode'),
+        Uri.parse('http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1/check-pincode/$pincode'),
         headers: {'Content-Type': 'application/json'},
       );
 

@@ -7,11 +7,11 @@ import 'package:flutter/foundation.dart';
 
 class TailorService {
   // Replace with your actual API base URL
-  static const String baseUrl = 'http://100.27.221.127:3000/api/v1';
+  static const String baseUrl = 'http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1';
 
   Future<Map<String, dynamic>> getTailorAvailability(String tailorId) async {
     try {
-      final url = Uri.parse('http://13.60.67.222:3000/api/v1/tailor/$tailorId/availability');
+      final url = Uri.parse('http://ec2-3-236-219-163.compute-1.amazonaws.com:3000/api/v1/tailor/$tailorId/availability');
       debugPrint('📅 Fetching availability: $url');
 
       final response = await http.get(
